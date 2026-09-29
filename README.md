@@ -1,4 +1,9 @@
-# ClaudeChat
+<div align="center">
+  <img src="src-tauri/icons/icon.png" alt="ClaudeChat 图标" width="128" height="128" />
+  <h1>ClaudeChat</h1>
+  <p><strong>轻量、可控、低门槛的 Claude 风格桌面对话客户端</strong></p>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License" /></a>
+</div>
 
 **ClaudeChat 的目标，是做一个轻量、可控、低门槛的 Claude 风格桌面对话客户端。**
 
@@ -30,3 +35,7 @@
 ## 技术栈
 
 Vue 3、TypeScript、Tailwind CSS、Tauri 2、Rust、SQLite。
+
+## 开源协议
+
+本项目采用 [MIT License](LICENSE)。
