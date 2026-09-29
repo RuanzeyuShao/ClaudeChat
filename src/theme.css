@@ -4,3 +4,39 @@ html[data-theme="light"] body,html[data-theme="light"] .chat-view{background:#fb
 .chat-header{justify-content:space-between}.conversation-controls{display:flex;align-items:center;gap:16px}.model-picker{width:185px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);padding:6px 9px;font:12px inherit;outline:none}.model-picker:focus{border-color:var(--accent)}.thinking-slider{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11px}.thinking-slider input{width:96px;accent-color:var(--accent)}@media(max-width:680px){.chat-header{height:84px!important;align-items:flex-start!important;flex-direction:column;padding:12px 18px!important}.conversation-controls{width:100%;justify-content:space-between}.model-picker{width:160px}.thinking-slider{gap:4px}}
 .input-options,.input-actions{display:flex;align-items:center;gap:12px}.input-footer{gap:12px}.model-selector{position:relative}.model-trigger{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--text);padding:6px 9px;cursor:pointer;font-size:12px}.model-trigger span{margin-left:5px}.model-menu{position:absolute;right:0;bottom:calc(100% + 10px);width:290px;max-width:calc(100vw - 80px);padding:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);z-index:5}.model-menu p{margin:4px 8px 7px;color:var(--muted);font-size:11px}.model-menu>button{display:block;width:100%;text-align:left;padding:9px 10px;border:0;border-radius:7px;background:transparent;color:var(--text);cursor:pointer}.model-menu>button:hover,.model-menu>button.selected{background:var(--soft)}.model-menu strong,.model-menu small{display:block}.model-menu small{margin-top:2px;color:var(--muted)}.custom-model{display:flex;gap:5px;margin-top:7px;padding-top:8px;border-top:1px solid var(--line)}.custom-model input{min-width:0;flex:1;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--text);padding:7px;font-size:12px}.custom-model button{border:0;border-radius:6px;background:var(--accent);color:#fff;padding:5px 9px;cursor:pointer}.search-toggle{white-space:nowrap}.thinking-slider span{white-space:nowrap}@media(max-width:700px){.input-options{gap:6px}.thinking-slider input{width:55px}.model-trigger{max-width:95px}.input-actions{gap:5px}}
 html[data-theme="light"] .empty h1{color:#000}html[data-theme="dark"] .empty h1{color:#fff}
+
+/* Attachment and document surfaces follow the resolved Light / Dark / System theme. */
+.document-preview{background:var(--panel);color:var(--text);border-left-color:var(--line)}
+.document-preview-header{border-bottom-color:var(--line)}
+.document-preview-header span{color:var(--muted)}
+.document-preview-header button{color:var(--muted)}
+.document-preview-header button:hover{color:var(--accent)}
+.document-preview-body{color:var(--text);scrollbar-color:var(--muted) var(--panel)}
+.document-preview-body pre{color:var(--text)}
+.document-preview-body .markdown{color:var(--text)}
+.document-preview-body .markdown blockquote{border-left-color:var(--accent);color:var(--muted)}
+.document-preview-body .markdown th,.document-preview-body .markdown td{border-color:var(--line)}
+.document-preview-body .markdown pre{background:var(--soft)!important;color:var(--text)!important}
+.document-preview-body .markdown pre code,.document-preview-body .markdown pre code span{color:var(--text)!important;background:transparent!important}
+.document-preview-body .markdown img{max-width:100%;height:auto}
+.attachment-card{background:var(--soft);border-color:var(--line);color:var(--text)}
+.attachment-card>span{color:var(--accent)}
+.attachment-card small{color:var(--muted)}
+.attachment-card>button:not(.attachment-preview-trigger){color:var(--muted)}
+.attachment-card>button:not(.attachment-preview-trigger):hover{color:var(--accent)}
+.attachment-open{color:var(--text)}
+.attachment-open:hover,.attachment-open:focus-visible{background:var(--soft);border-color:var(--accent)}
+.attachment-preview-trigger{color:var(--text)}
+.attachment-preview-trigger small{color:var(--muted)}
+.attach-button,.header-actions button{background:var(--panel);border-color:var(--line);color:var(--text)}
+.attach-button{color:var(--accent)}
+.attach-button:hover,.header-actions button:hover{background:var(--soft)}
+.attachment-hint{color:var(--accent)}
+.delete-modal{width:min(380px,calc(100vw - 32px));padding:23px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow)}
+.delete-modal h2{font-size:18px;margin:0 0 10px}.delete-modal p{font-size:13px;line-height:1.55;color:var(--muted);margin:0 0 18px}.delete-modal footer{display:flex;justify-content:flex-end;gap:8px}.delete-confirm{border:0;border-radius:7px;padding:8px 12px;background:#b54838;color:#fff;cursor:pointer;font:13px inherit}.delete-confirm:disabled{opacity:.6;cursor:wait}
+.pdf-preview-controls{padding:7px 12px;border-bottom:1px solid var(--line);display:flex;justify-content:flex-end}.pdf-preview-controls button{border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--text);padding:5px 8px;cursor:pointer;font:11px inherit}.pdf-body{padding:0;display:flex}.pdf-preview-frame{border:0;width:100%;height:100%;min-height:400px;background:var(--panel)}.preview-notice{padding:10px 12px;margin:0 0 14px;border-radius:7px;background:var(--soft);color:var(--muted);font-size:12px;line-height:1.5}.preview-error{color:#b54838}.missing-image{display:inline-block;padding:4px 7px;border:1px dashed var(--line);border-radius:5px;color:var(--muted);font-size:12px}.docx-preview{color:var(--text);font-size:13px;line-height:1.7}.docx-preview p{margin:0 0 12px}.docx-preview img{display:block;max-width:100%;height:auto;margin:10px auto;border-radius:4px}
+/* Let the embedded PDF viewer occupy all remaining preview height. */
+.document-preview{overflow:hidden}
+.document-preview-body{flex:1 1 0;min-height:0}
+.document-preview-body.pdf-body{display:flex;flex-direction:column;overflow:hidden}
+.pdf-preview-frame{display:block;flex:1 1 auto;width:100%;height:100%;min-height:0}
