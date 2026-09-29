@@ -1,0 +1,10 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/schemas/
+.env
+.env.*
+!.env.example
+.claude/
+tauri-build*.log
+tauri-build*.err.log

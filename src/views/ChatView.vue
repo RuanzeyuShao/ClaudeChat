@@ -1,0 +1,5 @@
+<script setup lang="ts">
+import { nextTick, ref, watch } from 'vue'; import { useChatStore } from '../stores/chat'; import MessageItem from '../components/MessageItem.vue'; import ChatInput from '../components/ChatInput.vue'
+const chat = useChatStore(); const list = ref<HTMLElement>(); watch(() => chat.active?.messages.length, async () => { await nextTick(); list.value?.scrollTo({ top: list.value.scrollHeight, behavior: 'smooth' }) })
+</script>
+<template><section class="chat-view"><header class="chat-header"><strong>{{ chat.active?.title || 'ClaudeChat' }}</strong></header><div ref="list" class="messages"><div v-if="!chat.active?.messages.length" class="empty"><div class="star">✦</div><h1>今天想一起做什么？</h1><p>ClaudeChat 在本地保存你的会话历史。</p></div><MessageItem v-for="(message, index) in chat.active?.messages" :key="message.id" :message="message" :can-regenerate="message.role === 'assistant' && index === (chat.active?.messages.length ?? 0) - 1 && !chat.loading" @regenerate="chat.regenerate"/><p v-if="chat.error" class="error">{{ chat.error }}</p></div><ChatInput/></section></template>
