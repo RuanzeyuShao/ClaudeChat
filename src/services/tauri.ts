@@ -1,4 +1,4 @@
-import type { Attachment, ConnectionResult, Conversation, Message, Settings } from '../types'
+import type { Attachment, ConnectionResult, Conversation, Message, Settings, ApiProfile, Usage, ModelPrice } from '../types'
 
 const isTauri = '__TAURI_INTERNALS__' in window
 async function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
@@ -22,6 +22,13 @@ export const api = {
   setConversationModel: (conversationId: string, model: string) => invoke<void>('set_conversation_model', { conversationId, model }),
   deleteConversation: (conversationId: string) => invoke<void>('delete_conversation', { conversationId }),
   getSettings: () => invoke<Settings>('get_settings'),
+  getProfiles: () => invoke<ApiProfile[]>('get_profiles'),
+  saveProfile: (profile: ApiProfile, apiKey: string) => invoke<void>('save_profile', { profile, apiKey }),
+  deleteProfile: (id: string) => invoke<void>('delete_profile', { id }),
+  getUsage: () => invoke<Usage[]>('get_usage'),
+  getModelPrices: () => invoke<ModelPrice[]>('get_model_prices'),
+  saveModelPrice: (price: ModelPrice) => invoke<void>('save_model_price', { price }),
+  saveCodeFile: (path: string, content: string, expected: string) => invoke<void>('save_code_file', { path, content, expected }),
   saveSettings: (settings: Settings) => invoke<void>('save_settings', { settings }),
   testConnection: (settings: Settings) => invoke<ConnectionResult>('test_connection', { settings }),
   sendMessage: (conversationId: string, content: string, settings: Settings, persistUser = true, attachments: Attachment[] = []) => invoke<void>('send_message', { conversationId, content, settings, persistUser, attachments }),

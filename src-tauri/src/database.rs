@@ -10,7 +10,13 @@ pub struct Conversation { pub id: String, pub title: String, pub model: String, 
 pub struct Message { pub id: String, pub role: String, pub content: String, pub created_at: String, #[serde(skip_serializing_if = "Option::is_none")] pub sources: Option<Vec<Source>>, #[serde(default)] pub attachments: Vec<Attachment> }
 #[derive(Clone, Serialize, Deserialize)] #[serde(rename_all = "camelCase")]
 pub struct Attachment { pub id: String, pub name: String, pub mime: String, pub kind: String, pub size: usize, pub text: Option<String>, pub data: Option<String> }
-#[derive(Clone, Serialize, Deserialize)] pub struct Source { pub title: String, pub url: String }
+#[derive(Clone, Serialize, Deserialize)] pub struct Source { pub title: String, pub url: String, #[serde(default)] pub snippet: String }
+#[derive(Clone, Serialize, Deserialize)] #[serde(rename_all="camelCase")]
+pub struct Usage { pub id:String, pub conversation_id:String, pub profile_id:String, pub profile_name:String, pub model:String, pub input_tokens:i64, pub output_tokens:i64, pub thinking_tokens:i64, pub duration_ms:i64, pub estimated_cost:f64, pub created_at:String }
+#[derive(Clone, Serialize, Deserialize)] #[serde(rename_all="camelCase")]
+pub struct ApiProfile {pub id:String,pub name:String,pub base_url:String,pub provider:String,pub model:String,pub thinking:String,pub input_price:f64,pub output_price:f64,pub has_key:bool}
+#[derive(Clone, Serialize, Deserialize)] #[serde(rename_all="camelCase")]
+pub struct ModelPrice {pub profile_id:String,pub model:String,pub input_price:f64,pub output_price:f64}
 
 pub struct Database { conn: Connection }
 impl Database {
@@ -20,7 +26,8 @@ impl Database {
     let conn = Connection::open(path.join("claudechat.db"))?;
     conn.execute_batch("CREATE TABLE IF NOT EXISTS conversations (id TEXT PRIMARY KEY, title TEXT NOT NULL, model TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL, metadata TEXT); CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS attachments (id TEXT PRIMARY KEY, message_id TEXT NOT NULL, name TEXT NOT NULL, mime TEXT NOT NULL, kind TEXT NOT NULL, size INTEGER NOT NULL, text TEXT, data TEXT);")?;
     if !conn.prepare("SELECT system_prompt FROM conversations LIMIT 1").is_ok() { conn.execute("ALTER TABLE conversations ADD COLUMN system_prompt TEXT NOT NULL DEFAULT ''", [])?; }
-    conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id,created_at); CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id);")?;
+    conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id,created_at); CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id); CREATE TABLE IF NOT EXISTS api_profiles(id TEXT PRIMARY KEY,name TEXT NOT NULL,base_url TEXT NOT NULL,provider TEXT NOT NULL,model TEXT NOT NULL,thinking TEXT NOT NULL,input_price REAL NOT NULL DEFAULT 0,output_price REAL NOT NULL DEFAULT 0); CREATE TABLE IF NOT EXISTS model_prices(profile_id TEXT NOT NULL,model TEXT NOT NULL,input_price REAL NOT NULL,output_price REAL NOT NULL,PRIMARY KEY(profile_id,model)); CREATE TABLE IF NOT EXISTS usage_records(id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL,profile_id TEXT NOT NULL,model TEXT NOT NULL,input_tokens INTEGER NOT NULL,output_tokens INTEGER NOT NULL,thinking_tokens INTEGER NOT NULL,duration_ms INTEGER NOT NULL,estimated_cost REAL NOT NULL,created_at TEXT NOT NULL);")?;
+    migrate_usage(&conn)?;
     Ok(Self { conn })
   }
   pub fn conversations(&self) -> Result<Vec<Conversation>> {
@@ -58,6 +65,25 @@ impl Database {
   pub fn delete_last_assistant(&self,id:&str)->Result<()> { self.conn.execute("DELETE FROM messages WHERE id=(SELECT id FROM messages WHERE conversation_id=?1 AND role='assistant' ORDER BY created_at DESC LIMIT 1)",[id])?; Ok(()) }
   pub fn setting(&self,key:&str)->Result<Option<String>> {Ok(self.conn.query_row("SELECT value FROM settings WHERE key=?",[key],|r|r.get(0)).ok())}
   pub fn set_setting(&self,key:&str,value:&str)->Result<()> {self.conn.execute("INSERT INTO settings(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value",params![key,value])?;Ok(())}
+  pub fn add_usage(&self,u:&Usage)->Result<()> {self.conn.execute("INSERT INTO usage_records(id,conversation_id,profile_id,model,input_tokens,output_tokens,thinking_tokens,duration_ms,estimated_cost,created_at,profile_name) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",params![u.id,u.conversation_id,u.profile_id,u.model,u.input_tokens,u.output_tokens,u.thinking_tokens,u.duration_ms,u.estimated_cost,u.created_at,u.profile_name])?;Ok(())}
+  pub fn usage(&self)->Result<Vec<Usage>> {let mut q=self.conn.prepare("SELECT id,conversation_id,profile_id,profile_name,model,input_tokens,output_tokens,thinking_tokens,duration_ms,estimated_cost,created_at FROM usage_records ORDER BY created_at DESC")?;let rows=q.query_map([],|r|Ok(Usage{id:r.get(0)?,conversation_id:r.get(1)?,profile_id:r.get(2)?,profile_name:r.get(3)?,model:r.get(4)?,input_tokens:r.get(5)?,output_tokens:r.get(6)?,thinking_tokens:r.get(7)?,duration_ms:r.get(8)?,estimated_cost:r.get(9)?,created_at:r.get(10)?}))?.collect::<std::result::Result<Vec<_>,_>>()?;Ok(rows)}
+  pub fn profiles(&self)->Result<Vec<ApiProfile>> {let mut q=self.conn.prepare("SELECT id,name,base_url,provider,model,thinking,input_price,output_price FROM api_profiles ORDER BY rowid")?;let rows=q.query_map([],|r|Ok(ApiProfile{id:r.get(0)?,name:r.get(1)?,base_url:r.get(2)?,provider:r.get(3)?,model:r.get(4)?,thinking:r.get(5)?,input_price:r.get(6)?,output_price:r.get(7)?,has_key:false}))?.collect::<std::result::Result<Vec<_>,_>>()?;Ok(rows)}
+  pub fn save_profile(&self,p:&ApiProfile)->Result<()> {self.conn.execute("INSERT INTO api_profiles(id,name,base_url,provider,model,thinking,input_price,output_price) VALUES(?1,?2,?3,?4,?5,?6,?7,?8) ON CONFLICT(id) DO UPDATE SET name=excluded.name,base_url=excluded.base_url,provider=excluded.provider,model=excluded.model,thinking=excluded.thinking,input_price=excluded.input_price,output_price=excluded.output_price",params![p.id,p.name,p.base_url,p.provider,p.model,p.thinking,p.input_price,p.output_price])?;Ok(())}
+  pub fn delete_profile(&self,id:&str)->Result<()> {self.conn.execute("DELETE FROM model_prices WHERE profile_id=?",[id])?;self.conn.execute("DELETE FROM api_profiles WHERE id=?",[id])?;Ok(())}
+  pub fn model_prices(&self)->Result<Vec<ModelPrice>> {let mut q=self.conn.prepare("SELECT profile_id,model,input_price,output_price FROM model_prices")?;let rows=q.query_map([],|r|Ok(ModelPrice{profile_id:r.get(0)?,model:r.get(1)?,input_price:r.get(2)?,output_price:r.get(3)?}))?.collect::<std::result::Result<Vec<_>,_>>()?;Ok(rows)}
+  pub fn save_model_price(&self,p:&ModelPrice)->Result<()> {self.conn.execute("INSERT INTO model_prices VALUES(?1,?2,?3,?4) ON CONFLICT(profile_id,model) DO UPDATE SET input_price=excluded.input_price,output_price=excluded.output_price",params![p.profile_id,p.model,p.input_price,p.output_price])?;Ok(())}
+}
+
+fn migrate_usage(conn:&Connection)->Result<()> {
+  let version:i64=conn.query_row("PRAGMA user_version",[],|r|r.get(0))?;
+  if version<2 {
+    let mut columns=conn.prepare("PRAGMA table_info(usage_records)")?;
+    let names=columns.query_map([],|r|r.get::<_,String>(1))?.collect::<std::result::Result<Vec<_>,_>>()?;
+    if !names.iter().any(|name|name=="profile_name") {conn.execute("ALTER TABLE usage_records ADD COLUMN profile_name TEXT NOT NULL DEFAULT ''",[])?;}
+    conn.execute("UPDATE usage_records SET profile_name=COALESCE((SELECT name FROM api_profiles WHERE id=usage_records.profile_id),'') WHERE profile_name=''",[])?;
+    conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_usage_created ON usage_records(created_at); CREATE INDEX IF NOT EXISTS idx_usage_dimensions ON usage_records(model,profile_id,conversation_id,created_at); PRAGMA user_version=2;")?;
+  }
+  Ok(())
 }
 
 fn generate_title(content:&str,attachments:&[Attachment])->String {
@@ -69,4 +95,6 @@ fn generate_title(content:&str,attachments:&[Attachment])->String {
   let short:String=title.chars().take(22).collect();if title.chars().count()>22{format!("{}…",short)}else{short}
 }
 
-#[cfg(test)] mod tests {use super::*;#[test] fn title_uses_first_request(){assert_eq!(generate_title("请帮我总结这篇论文。后续问题",&[]),"总结这篇论文");assert_eq!(generate_title("",&[Attachment{id:"1".into(),name:"report.md".into(),mime:"text/markdown".into(),kind:"document".into(),size:1,text:None,data:None}]),"阅读 report");}}
+#[cfg(test)] mod tests {use super::*;#[test] fn title_uses_first_request(){assert_eq!(generate_title("请帮我总结这篇论文。后续问题",&[]),"总结这篇论文");assert_eq!(generate_title("",&[Attachment{id:"1".into(),name:"report.md".into(),mime:"text/markdown".into(),kind:"document".into(),size:1,text:None,data:None}]),"阅读 report");}
+#[test] fn usage_migration_preserves_records(){let conn=Connection::open_in_memory().unwrap();conn.execute_batch("CREATE TABLE api_profiles(id TEXT PRIMARY KEY,name TEXT); INSERT INTO api_profiles VALUES('p','工作'); CREATE TABLE usage_records(id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL,profile_id TEXT NOT NULL,model TEXT NOT NULL,input_tokens INTEGER NOT NULL,output_tokens INTEGER NOT NULL,thinking_tokens INTEGER NOT NULL,duration_ms INTEGER NOT NULL,estimated_cost REAL NOT NULL,created_at TEXT NOT NULL); INSERT INTO usage_records VALUES('u','c','p','m',12,4,1,900,0.02,'2026-09-29T00:00:00Z');").unwrap();migrate_usage(&conn).unwrap();migrate_usage(&conn).unwrap();let (name,tokens):(String,i64)=conn.query_row("SELECT profile_name,input_tokens FROM usage_records WHERE id='u'",[],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();assert_eq!(name,"工作");assert_eq!(tokens,12);}
+}

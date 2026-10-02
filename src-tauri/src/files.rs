@@ -18,17 +18,17 @@ pub fn parse(name: String, mime: String, data: String) -> Result<Attachment> {
       if !mime.is_empty() && mime!=expected { return Err(anyhow!("图片格式与文件类型不匹配")); }
       ("image",None,expected.to_string())
     },
-    "txt"|"md" => {
+    "txt"|"md"|"py"|"cpp"|"c"|"h"|"hpp"|"java"|"js"|"ts"|"vue"|"rs"|"go"|"sh"|"json"|"yaml"|"yml" => {
       let content=String::from_utf8(bytes.clone()).map_err(|_|anyhow!("TXT / Markdown 文件需要 UTF-8 编码"))?;
-      ("document",Some(content.trim_start_matches('\u{feff}').to_string()),if extension=="md"{"text/markdown"}else{"text/plain"}.into())
+      (if extension=="txt"||extension=="md"{"document"}else{"code"},Some(content.trim_start_matches('\u{feff}').to_string()),if extension=="md"{"text/markdown"}else{"text/plain"}.into())
     },
     "pdf" => ("document",Some(pdf_extract::extract_text_from_mem(&bytes)?),"application/pdf".into()),
     "docx" => ("document",Some(docx_text(&bytes)?),"application/vnd.openxmlformats-officedocument.wordprocessingml.document".into()),
     "doc" => return Err(anyhow!("旧版 .doc 暂不支持，请转换为 .docx")),
-    _ => return Err(anyhow!("仅支持 PNG、JPEG、GIF、WebP、PDF、DOCX、TXT 和 MD")),
+    _ => return Err(anyhow!("不支持此文件类型")),
   };
   if text.as_ref().is_some_and(|s|s.chars().count()>MAX_TEXT) { return Err(anyhow!("文档超过 20 万字符，请拆分后上传")); }
-  if kind=="document" && text.as_ref().is_none_or(|s|s.trim().is_empty()) { return Err(anyhow!("文件没有可提取的文字；扫描版 PDF 需要先进行 OCR")); }
+  if kind!="image" && text.as_ref().is_none_or(|s|s.trim().is_empty()) { return Err(anyhow!("文件没有可提取的文字；扫描版 PDF 需要先进行 OCR")); }
   let preview_data=match extension.as_str(){"png"|"jpg"|"jpeg"|"gif"|"webp"|"pdf"=>Some(data),"docx"=>Some(docx_preview(&bytes)?),_=>None};
   Ok(Attachment{id:Uuid::new_v4().to_string(),name,mime,kind:kind.into(),size:bytes.len(),text,data:preview_data})
 }
@@ -140,6 +140,13 @@ fn wrap(text:&str,n:usize)->Vec<String>{if text.is_empty(){return vec![];}let mu
     assert_eq!(attachment.kind,"document");
     assert_eq!(attachment.mime,"text/markdown");
     assert!(attachment.text.unwrap().contains("```rust"));
+  }
+  #[test] fn parses_code_as_first_class_attachment() {
+    for name in ["main.py","main.cpp","main.c","main.h","main.hpp","Main.java","app.js","app.ts","App.vue","main.rs","main.go","build.sh","data.json","config.yaml"] {
+      let attachment=parse(name.into(),String::new(),STANDARD.encode("let x = 1;".as_bytes())).unwrap();
+      assert_eq!(attachment.kind,"code", "{name}");
+      assert_eq!(attachment.text.as_deref(),Some("let x = 1;"));
+    }
   }
   #[test] fn bundles_local_markdown_images() {
     let root=std::env::temp_dir().join(format!("claude-chat-images-{}",Uuid::new_v4()));

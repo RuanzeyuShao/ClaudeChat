@@ -1,25 +1,50 @@
 <script setup lang="ts">
-import { nextTick, ref, watch, onMounted, onUnmounted } from 'vue'; import { useChatStore } from '../stores/chat'; import MessageItem from '../components/MessageItem.vue'; import ChatInput from '../components/ChatInput.vue'; import DocumentPreview from '../components/DocumentPreview.vue'; import { api } from '../services/tauri'; import type { Attachment } from '../types'
+import { computed, nextTick, ref, watch, onMounted, onUnmounted } from 'vue'; import { useChatStore } from '../stores/chat'; import MessageItem from '../components/MessageItem.vue'; import ChatInput from '../components/ChatInput.vue'; import DocumentPreview from '../components/DocumentPreview.vue'; import PaneResizeHandle from '../components/PaneResizeHandle.vue'; import { api } from '../services/tauri'; import type { Attachment } from '../types'
 const chat = useChatStore(); const list = ref<HTMLElement>(); watch(() => chat.active?.messages.length, async () => { await nextTick(); list.value?.scrollTo({ top: list.value.scrollHeight, behavior: 'smooth' }) })
+const chatContent = ref<HTMLElement>()
+const containerWidth = ref(1200)
+const viewportWidth = ref(window.innerWidth)
+const savedPreviewWidth = Number(localStorage.getItem('claudechat.previewWidth'))
+const preferredPreviewWidth = ref(savedPreviewWidth >= 280 ? savedPreviewWidth : 520)
+const previewWidth = computed(() => Math.max(280, Math.min(preferredPreviewWidth.value, 900, containerWidth.value - 547)))
+const overlayPreview = computed(() => viewportWidth.value <= 1180)
+const resizePreview = (delta: number) => {
+  preferredPreviewWidth.value = Math.max(280, Math.min(previewWidth.value - delta, 900, containerWidth.value - 547))
+  localStorage.setItem('claudechat.previewWidth', String(preferredPreviewWidth.value))
+}
+const onViewportResize = () => { viewportWidth.value = window.innerWidth }
+let contentObserver: ResizeObserver | undefined
 const preview = ref<Attachment | null>(null); watch(() => chat.activeId, () => preview.value = null)
+const proposed = ref(''); const openPreview = (attachment: Attachment) => { proposed.value=''; preview.value=attachment }; const openDiff=(attachment:Attachment,code:string)=>{proposed.value=code;preview.value=attachment}
+const codes = computed(() => chat.active?.messages.flatMap(m => m.attachments || []).filter(a => a.kind === 'code') || [])
+const contextTokens = computed(() => {let messages=(chat.active?.messages||[]).filter(m=>!m.pending);if(chat.settings.contextMode==='recent')messages=messages.slice(-Math.max(1,chat.settings.recentTurns)*2);if(chat.settings.contextMode==='smart'&&messages.length>20)messages=messages.slice(-16);if(chat.settings.selectedMessageIds.length)messages=messages.filter(m=>chat.settings.selectedMessageIds.includes(m.id));let remaining=24000;const chars=messages.reduce((n,m)=>{let value=n+m.content.length;for(const a of m.attachments||[]){if(chat.settings.selectedAttachmentIds.length&&!chat.settings.selectedAttachmentIds.includes(a.id))continue;const count=Math.min(a.text?.length||0,16000,remaining);value+=count;remaining-=count}return value},0);return Math.ceil(chars/4) })
+const contextOpen=ref(false)
+const usageOpen=ref(false)
+const toggleMessage=(id:string)=>{const all=chat.active?.messages.filter(m=>!m.pending).map(m=>m.id)||[];if(!chat.settings.selectedMessageIds.length)chat.settings.selectedMessageIds=[...all];chat.settings.selectedMessageIds=chat.settings.selectedMessageIds.includes(id)?chat.settings.selectedMessageIds.filter(x=>x!==id):[...chat.settings.selectedMessageIds,id];if(!chat.settings.selectedMessageIds.length)chat.settings.selectedMessageIds=['__none__']}
+const toggleAttachment=(id:string)=>{const all=chat.active?.messages.flatMap(m=>m.attachments||[]).map(a=>a.id)||[];if(!chat.settings.selectedAttachmentIds.length)chat.settings.selectedAttachmentIds=[...all];chat.settings.selectedAttachmentIds=chat.settings.selectedAttachmentIds.includes(id)?chat.settings.selectedAttachmentIds.filter(x=>x!==id):[...chat.settings.selectedAttachmentIds,id];if(!chat.settings.selectedAttachmentIds.length)chat.settings.selectedAttachmentIds=['__none__']}
+const usageFor=(index:number)=>{const count=chat.active?.messages.slice(0,index+1).filter(m=>m.role==='assistant').length||0;return chat.usage.filter(u=>u.conversationId===chat.activeId).slice().reverse()[count-1]}
+const totals=computed(()=>{const records=chat.usage.filter(u=>u.conversationId===chat.activeId);const today=new Date().toISOString().slice(0,10),month=today.slice(0,7);const sum=(items:typeof records)=>({tokens:items.reduce((n,u)=>n+u.inputTokens+u.outputTokens,0),cost:items.reduce((n,u)=>n+u.estimatedCost,0)});return {chat:sum(records),today:sum(chat.usage.filter(u=>u.createdAt.startsWith(today))),month:sum(chat.usage.filter(u=>u.createdAt.startsWith(month)))}})
 const dragging = ref(false); const exportError = ref(''); const exportStatus = ref(''); const exporting = ref(false)
 const drop = (event: DragEvent) => { event.preventDefault(); dragging.value = false; if (event.dataTransfer?.files.length) window.dispatchEvent(new CustomEvent('chat-drop-files', { detail: Array.from(event.dataTransfer.files) })) }
 let unlisten: (() => void) | undefined
-onMounted(async () => { if (!api.isTauri) return; const { getCurrentWebview } = await import('@tauri-apps/api/webview'); unlisten = await getCurrentWebview().onDragDropEvent(event => { if (event.payload.type === 'over') dragging.value = true; if (event.payload.type === 'leave') dragging.value = false; if (event.payload.type === 'drop') { dragging.value = false; window.dispatchEvent(new CustomEvent('chat-drop-paths', { detail: event.payload.paths })) } }) })
-onUnmounted(() => unlisten?.())
+onMounted(async () => { window.addEventListener('resize', onViewportResize); if (chatContent.value) { containerWidth.value = chatContent.value.clientWidth; contentObserver = new ResizeObserver(entries => { containerWidth.value = entries[0].contentRect.width }); contentObserver.observe(chatContent.value) } if (!api.isTauri) return; const { getCurrentWebview } = await import('@tauri-apps/api/webview'); unlisten = await getCurrentWebview().onDragDropEvent(event => { if (event.payload.type === 'over') dragging.value = true; if (event.payload.type === 'leave') dragging.value = false; if (event.payload.type === 'drop') { dragging.value = false; window.dispatchEvent(new CustomEvent('chat-drop-paths', { detail: event.payload.paths })) } }) })
+onUnmounted(() => { unlisten?.(); contentObserver?.disconnect(); window.removeEventListener('resize', onViewportResize) })
 const exportChat = async (format: 'md' | 'pdf') => { if (!chat.active || !api.isTauri) return; exportError.value = ''; exportStatus.value = ''; try { const { save } = await import('@tauri-apps/plugin-dialog'); const path = await save({ defaultPath: `${chat.active.title}.${format}`, filters: [{ name: format === 'md' ? 'Markdown' : 'PDF', extensions: [format] }] }); if (!path) return; exporting.value = true; await api.exportConversation(chat.active.id, format, path); exportStatus.value = `已导出到 ${path}` } catch (e) { exportError.value = String(e) } finally { exporting.value = false } }
 const editPrompt = async () => { const prompt = window.prompt('此会话的 System Prompt（留空使用全局默认）', chat.active?.systemPrompt || ''); if (prompt !== null) await chat.setConversationPrompt(prompt) }
 </script>
 <template>
   <section class="chat-view" :class="{ 'drag-over': dragging }" @dragenter.prevent="dragging = true" @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop="drop">
-    <header class="chat-header"><strong>{{ chat.active?.title || 'ClaudeChat' }}</strong><div class="header-actions"><span v-if="exportStatus" class="export-status" :title="exportStatus">导出完成 ✓</span><button @click="editPrompt">⌘ 会话 Prompt</button><button :disabled="exporting" @click="exportChat('md')">{{ exporting ? '导出中…' : '导出 MD' }}</button><button :disabled="exporting" @click="exportChat('pdf')">{{ exporting ? '导出中…' : '导出 PDF' }}</button></div></header>
+    <header class="chat-header"><strong>{{ chat.active?.title || 'ClaudeChat' }}</strong><div class="header-actions"><span>上下文约 {{ contextTokens }} Token</span><button @click="usageOpen = !usageOpen">用量</button><button @click="contextOpen = !contextOpen">上下文选择</button><span v-if="exportStatus" class="export-status" :title="exportStatus">导出完成 ✓</span><button @click="editPrompt">⌘ 会话 Prompt</button><button :disabled="exporting" @click="exportChat('md')">{{ exporting ? '导出中…' : '导出 MD' }}</button><button :disabled="exporting" @click="exportChat('pdf')">{{ exporting ? '导出中…' : '导出 PDF' }}</button></div></header>
+    <div v-if="usageOpen" class="context-picker"><strong>Token / 估算费用</strong><p>本会话 {{ totals.chat.tokens }} Token · ${{ totals.chat.cost.toFixed(4) }}　今日 {{ totals.today.tokens }} Token · ${{ totals.today.cost.toFixed(4) }}　本月 {{ totals.month.tokens }} Token · ${{ totals.month.cost.toFixed(4) }}</p></div>
+    <div v-if="contextOpen" class="context-picker"><strong>下次请求包含的历史</strong><button @click="chat.settings.selectedMessageIds=[]; chat.settings.selectedAttachmentIds=[]">全选</button><div v-for="m in chat.active?.messages.filter(x=>!x.pending)" :key="m.id"><label><input type="checkbox" :checked="!chat.settings.selectedMessageIds.length || chat.settings.selectedMessageIds.includes(m.id)" @change="toggleMessage(m.id)" />{{ m.role === 'user' ? '你' : '助手' }} · {{ m.content.slice(0,60) }}</label><label v-for="a in m.attachments" :key="a.id"><input type="checkbox" :checked="!chat.settings.selectedAttachmentIds.length || chat.settings.selectedAttachmentIds.includes(a.id)" @change="toggleAttachment(a.id)" />附件 {{ a.name }}</label></div></div>
     <div v-if="dragging" class="drop-overlay">松开以添加图片或文档</div>
-    <div class="chat-content">
+    <div ref="chatContent" class="chat-content">
       <div class="chat-main">
-        <div ref="list" class="messages"><div v-if="!chat.active?.messages.length" class="empty"><div class="star">✦</div><h1>今天想一起做什么？</h1><p>ClaudeChat 在本地保存你的会话历史。</p></div><MessageItem v-for="(message, index) in chat.active?.messages" :key="message.id" :message="message" :can-regenerate="message.role === 'assistant' && index === (chat.active?.messages.length ?? 0) - 1 && !chat.loading" @regenerate="chat.regenerate" @preview="preview = $event"/><p v-if="chat.error || exportError" class="error">{{ chat.error || exportError }}</p></div>
-        <ChatInput @preview="preview = $event" />
+        <div ref="list" class="messages"><div v-if="!chat.active?.messages.length" class="empty"><div class="star">✦</div><h1>今天想一起做什么？</h1><p>ClaudeChat 在本地保存你的会话历史。</p></div><MessageItem v-for="(message, index) in chat.active?.messages" :key="message.id" :message="message" :code-attachments="codes" :usage="message.role === 'assistant' ? usageFor(index) : undefined" :can-regenerate="message.role === 'assistant' && index === (chat.active?.messages.length ?? 0) - 1 && !chat.loading" @regenerate="chat.regenerate" @preview="openPreview" @diff="openDiff"/><p v-if="chat.error || exportError" class="error">{{ chat.error || exportError }}</p></div>
+        <ChatInput @preview="openPreview" />
       </div>
-      <DocumentPreview v-if="preview" :attachment="preview" @close="preview = null" />
+      <PaneResizeHandle v-if="preview && !overlayPreview" label="调整聊天区与预览区宽度" @resize="resizePreview" @reset="resizePreview(previewWidth - 520)" />
+      <DocumentPreview v-if="preview" :attachment="preview" :proposed="proposed" :style="overlayPreview ? undefined : { width: `${previewWidth}px`, flexBasis: `${previewWidth}px` }" @close="preview = null" />
     </div>
   </section>
 </template>

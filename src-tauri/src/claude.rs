@@ -12,11 +12,12 @@ const MAX_REQUEST_DOCUMENT_CHARS: usize = 24_000;
 fn add_source(sources: &mut Vec<Source>, value: &Value) {
   let Some(url) = value["url"].as_str() else { return };
   if sources.iter().any(|source| source.url == url) { return; }
-  sources.push(Source { title: value["title"].as_str().unwrap_or(url).to_string(), url: url.to_string() });
+  sources.push(Source { title: value["title"].as_str().unwrap_or(url).to_string(), url: url.to_string(), snippet: value["snippet"].as_str().or_else(||value["page_content"].as_str()).unwrap_or("").chars().take(240).collect() });
 }
 
 fn collect_sources(sources: &mut Vec<Source>, value: &Value) {
   if let Some(citations) = value["citations"].as_array() { for citation in citations { add_source(sources, citation); } }
+  if value["citation"].is_object() { add_source(sources,&value["citation"]); }
   if value["type"] == "web_search_result" { add_source(sources, value); }
   if let Some(content) = value["content"].as_array() { for item in content { collect_sources(sources, item); } }
 }
@@ -25,6 +26,7 @@ fn endpoint(base_url: &str) -> String {
   let base = base_url.trim().trim_end_matches('/');
   if base.ends_with("/v1/messages") { base.to_string() } else { format!("{base}/v1/messages") }
 }
+fn openai_endpoint(base_url:&str)->String {let base=base_url.trim().trim_end_matches('/');if base.ends_with("/chat/completions"){base.into()}else if base.ends_with("/v1"){format!("{base}/chat/completions")}else{format!("{base}/v1/chat/completions")}}
 
 fn thinking_budget(level: &str) -> Option<u32> {
   match level { "low" => Some(1_024), "medium" => Some(4_096), "high" => Some(8_192), _ => None }
@@ -46,6 +48,19 @@ pub async fn test_connection(base_url: String, api_key: String, model: String) -
   if response.status().is_success() { Ok("连接成功：API 可用".into()) }
   else { Err(anyhow!("连接失败（{}）：{}", response.status(), response.text().await.unwrap_or_default())) }
 }
+pub async fn test_openai(base_url:String,api_key:String,model:String)->Result<String>{let response=Client::new().post(openai_endpoint(&base_url)).bearer_auth(api_key).json(&json!({"model":model,"max_tokens":1,"messages":[{"role":"user","content":"ping"}]})).send().await?;if response.status().is_success(){Ok("连接成功：API 可用".into())}else{Err(anyhow!("连接失败（{}）：{}",response.status(),response.text().await.unwrap_or_default()))}}
+
+pub async fn stream_openai(base_url:String,api_key:String,model:String,thinking:String,history:Vec<Message>,system_prompt:String,cancelled:Arc<AtomicBool>,mut on_delta:impl FnMut(String)->Result<()>)->Result<(String,Vec<Source>,i64,i64,i64)>{
+  let mut messages=Vec::new();if !system_prompt.trim().is_empty(){messages.push(json!({"role":"system","content":system_prompt}));}
+  let mut remaining=MAX_REQUEST_DOCUMENT_CHARS;
+  for message in history {if message.role!="user"&&message.role!="assistant"{continue;}let mut blocks=vec![json!({"type":"text","text":message.content})];for a in message.attachments {if a.kind=="image"{if let Some(data)=a.data{blocks.push(json!({"type":"image_url","image_url":{"url":format!("data:{};base64,{}",a.mime,data)}}));}}else if let Some(text)=a.text{let excerpt:String=text.chars().take(remaining.min(MAX_DOCUMENT_CHARS)).collect();remaining=remaining.saturating_sub(excerpt.chars().count());blocks.push(json!({"type":"text","text":format!("文件 {}：\n{}",a.name,excerpt)}));}}let content=if blocks.iter().any(|b|b["type"]=="image_url"){Value::Array(blocks)}else{json!(blocks.iter().filter_map(|b|b["text"].as_str()).collect::<Vec<_>>().join("\n\n"))};messages.push(json!({"role":message.role,"content":content}));}
+  let client=Client::new();let url=openai_endpoint(&base_url);let mut body=json!({"model":model,"stream":true,"stream_options":{"include_usage":true},"messages":messages});if thinking!="off"{body["reasoning_effort"]=json!(thinking);}let mut response=client.post(&url).bearer_auth(&api_key).json(&body).send().await?;
+  if response.status().as_u16()==400 {response=client.post(&url).bearer_auth(&api_key).json(&json!({"model":model,"stream":true,"messages":messages})).send().await?;}
+  if !response.status().is_success(){return Err(anyhow!("OpenAI Compatible API 返回 {}：{}",response.status(),response.text().await.unwrap_or_default()));}
+  let mut stream=response.bytes_stream();let mut buffer=String::new();let mut answer=String::new();let (mut input,mut output,mut thinking)=(0,0,0);
+  while let Some(chunk)=stream.next().await {if cancelled.load(Ordering::Relaxed){break;}buffer.push_str(&String::from_utf8_lossy(&chunk?));while let Some(end)=buffer.find("\n\n"){let block=buffer[..end].to_string();buffer.drain(..end+2);let data=block.lines().find_map(|line|line.strip_prefix("data: ")).unwrap_or("");if data=="[DONE]"{continue;}let Ok(event)=serde_json::from_str::<Value>(data) else{continue};if let Some(text)=event["choices"][0]["delta"]["content"].as_str(){answer.push_str(text);on_delta(text.into())?;}if let Some(u)=event.get("usage"){input=u["prompt_tokens"].as_i64().unwrap_or(input);output=u["completion_tokens"].as_i64().unwrap_or(output);thinking=u["completion_tokens_details"]["reasoning_tokens"].as_i64().unwrap_or(thinking);}}}
+  Ok((answer,vec![],input,output,thinking))
+}
 
 pub async fn stream(
   base_url: String,
@@ -57,7 +72,7 @@ pub async fn stream(
   web_search: bool,
   cancelled: Arc<AtomicBool>,
   mut on_delta: impl FnMut(String) -> Result<()>,
-) -> Result<(String, Vec<Source>)> {
+) -> Result<(String, Vec<Source>, i64, i64, i64)> {
   let messages = prepare_messages(&history);
   let modern = model.starts_with("claude-fable-5") || model.starts_with("claude-opus-5") || model.starts_with("claude-sonnet-5") || model.starts_with("claude-opus-4-7") || model.starts_with("claude-opus-4-8") || model.starts_with("claude-sonnet-4-6") || model.starts_with("claude-opus-4-6");
   let budget = if modern { None } else { thinking_budget(&thinking) };
@@ -92,6 +107,7 @@ pub async fn stream(
   let mut buffer = String::new();
   let mut answer = String::new();
   let mut sources = Vec::new();
+  let (mut input_tokens,mut output_tokens,mut thinking_tokens)=(0,0,0);
   while let Some(chunk) = stream.next().await {
     if cancelled.load(Ordering::Relaxed) { break; }
     buffer.push_str(&String::from_utf8_lossy(&chunk?));
@@ -101,18 +117,22 @@ pub async fn stream(
       let data = block.lines().find_map(|line| line.strip_prefix("data: ")).unwrap_or("");
       if data == "[DONE]" { continue; }
       let Ok(event) = serde_json::from_str::<Value>(data) else { continue; };
+      if event["type"] == "message_start" { input_tokens=event["message"]["usage"]["input_tokens"].as_i64().unwrap_or(0); }
+      if event["type"] == "message_delta" { output_tokens=event["usage"]["output_tokens"].as_i64().unwrap_or(output_tokens); }
       if event["type"] == "content_block_delta" {
         if let Some(text) = event["delta"]["text"].as_str() {
           answer.push_str(text);
           on_delta(text.to_string())?;
         }
         collect_sources(&mut sources, &event["delta"]);
+        if event["delta"]["type"]=="citations_delta" {if let Some(url)=event["delta"]["citation"]["url"].as_str(){if let Some(position)=sources.iter().position(|s|s.url==url){let marker=format!("[{}]",position+1);answer.push_str(&marker);on_delta(marker)?;}}}
+        if let Some(thought)=event["delta"]["thinking"].as_str(){thinking_tokens+=(thought.chars().count() as i64+3)/4;}
       } else if event["type"] == "content_block_start" {
         collect_sources(&mut sources, &event["content_block"]);
       }
     }
   }
-  Ok((answer, sources))
+  Ok((answer, sources,input_tokens,output_tokens,thinking_tokens))
 }
 
 fn prepare_messages(history: &[Message]) -> Vec<Value> {

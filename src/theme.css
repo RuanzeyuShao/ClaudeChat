@@ -17,7 +17,7 @@ html[data-theme="light"] .empty h1{color:#000}html[data-theme="dark"] .empty h1{
 .document-preview-body .markdown blockquote{border-left-color:var(--accent);color:var(--muted)}
 .document-preview-body .markdown th,.document-preview-body .markdown td{border-color:var(--line)}
 .document-preview-body .markdown pre{background:var(--soft)!important;color:var(--text)!important}
-.document-preview-body .markdown pre code,.document-preview-body .markdown pre code span{color:var(--text)!important;background:transparent!important}
+.document-preview-body .markdown pre code,.document-preview-body .markdown pre code span{background:transparent!important}
 .document-preview-body .markdown img{max-width:100%;height:auto}
 .attachment-card{background:var(--soft);border-color:var(--line);color:var(--text)}
 .attachment-card>span{color:var(--accent)}
@@ -40,3 +40,50 @@ html[data-theme="light"] .empty h1{color:#000}html[data-theme="dark"] .empty h1{
 .document-preview-body{flex:1 1 0;min-height:0}
 .document-preview-body.pdf-body{display:flex;flex-direction:column;overflow:hidden}
 .pdf-preview-frame{display:block;flex:1 1 auto;width:100%;height:100%;min-height:0}
+
+/* Code previews use the app surface colors and fill the available preview height. */
+.document-preview{align-self:stretch;height:100%}
+.document-preview-body.code-body{display:flex;flex-direction:column;padding:0;overflow:hidden}
+.document-preview-body.code-body pre{flex:1 1 0;min-height:0;width:100%;margin:0;padding:18px 20px;overflow:auto;white-space:pre;overflow-wrap:normal;border-radius:0;background:var(--soft)!important;color:var(--text)!important}
+.document-preview-body.code-body code{display:block;min-width:max-content;color:var(--text)}
+.attachment-file-icon{width:38px;height:38px;flex:none;display:grid;place-items:center;border-radius:8px;background:rgba(201,103,59,.14);color:var(--accent)!important}
+.attachment-file-icon svg{width:23px;height:23px;display:block;stroke:currentColor}
+html[data-theme="dark"] .attachment-file-icon{background:rgba(228,131,85,.19)}
+html[data-theme="light"] .markdown pre{background:var(--soft)!important;color:var(--text)!important}
+html[data-theme="light"] .hljs{background:var(--soft)!important;color:#24292e!important}
+html[data-theme="light"] .hljs-doctag,html[data-theme="light"] .hljs-keyword,html[data-theme="light"] .hljs-template-tag,html[data-theme="light"] .hljs-template-variable,html[data-theme="light"] .hljs-type,html[data-theme="light"] .hljs-variable.language_{color:#b82532!important}
+html[data-theme="light"] .hljs-title,html[data-theme="light"] .hljs-title.class_,html[data-theme="light"] .hljs-title.function_{color:#6f42a6!important}
+html[data-theme="light"] .hljs-attr,html[data-theme="light"] .hljs-attribute,html[data-theme="light"] .hljs-literal,html[data-theme="light"] .hljs-meta,html[data-theme="light"] .hljs-number,html[data-theme="light"] .hljs-operator,html[data-theme="light"] .hljs-variable,html[data-theme="light"] .hljs-selector-attr,html[data-theme="light"] .hljs-selector-class,html[data-theme="light"] .hljs-selector-id{color:#0759a5!important}
+html[data-theme="light"] .hljs-regexp,html[data-theme="light"] .hljs-string,html[data-theme="light"] .hljs-meta .hljs-string{color:#075178!important}
+html[data-theme="light"] .hljs-built_in,html[data-theme="light"] .hljs-symbol{color:#b34d06!important}
+html[data-theme="light"] .hljs-comment,html[data-theme="light"] .hljs-code,html[data-theme="light"] .hljs-formula{color:#59636e!important}
+html[data-theme="light"] .hljs-name,html[data-theme="light"] .hljs-quote,html[data-theme="light"] .hljs-selector-tag,html[data-theme="light"] .hljs-selector-pseudo{color:#1d7833!important}
+html[data-theme="light"] .hljs-subst,html[data-theme="light"] .hljs-emphasis,html[data-theme="light"] .hljs-strong{color:#24292e!important}
+html[data-theme="light"] .hljs-section{color:#0759a5!important}
+html[data-theme="light"] .hljs-bullet{color:#785e07!important}
+.document-preview-body.code-body .code-diff{background:var(--soft)!important}
+html[data-theme="dark"] .diff-add{color:#72d297}html[data-theme="dark"] .diff-remove{color:#ff8c87}
+@media(max-width:1180px){.document-preview{height:auto}}
+@media(min-width:931px) and (max-width:1180px){.document-preview{position:absolute;z-index:6;right:0;top:58px;bottom:0;width:min(480px,calc(100% - 45px));box-shadow:-10px 0 30px #0006}}
+@media(max-width:1180px){.chat-view>header{height:auto;min-height:58px;padding-top:9px;padding-bottom:9px;flex-wrap:wrap}.chat-content{position:relative}.document-preview{top:0!important;bottom:0}}
+@media(max-width:680px){.document-preview{top:84px}}
+
+/* Both pane dividers remain in the layout, so resizing never overlays content. */
+.pane-resize-handle{position:relative;z-index:2;flex:0 0 7px;width:7px;min-width:7px;align-self:stretch;cursor:col-resize;touch-action:none;background:var(--bg);outline:none}
+.pane-resize-handle::before{content:"";position:absolute;inset:0 auto 0 3px;width:1px;background:var(--line);transition:width .15s ease,background .15s ease}
+.pane-resize-handle:hover::before,.pane-resize-handle:focus-visible::before,.resizing-panes .pane-resize-handle::before{width:3px;background:var(--accent)}
+.resizing-panes,.resizing-panes *{cursor:col-resize!important;user-select:none!important}
+@media(max-width:680px){.app-shell>.pane-resize-handle{display:none}}
+
+/* Native WebView scrollbars follow the resolved application theme. */
+html[data-theme="dark"]{--scroll-thumb:#60615f;--scroll-thumb-hover:#858783;--scroll-track:#1b1b1b}
+html[data-theme="light"]{--scroll-thumb:#b7b2ac;--scroll-thumb-hover:#8d8882;--scroll-track:#fbfaf8}
+.messages{--scroll-track:var(--bg)}
+.conversation-list{--scroll-track:var(--panel)}
+.document-preview-body{--scroll-track:var(--panel)}
+.document-preview-body pre{--scroll-track:var(--soft)}
+:is(.messages,.conversation-list,.document-preview-body,.document-preview-body pre,.settings-modal,.usage-scroll){scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) var(--scroll-track)}
+:is(.messages,.conversation-list,.document-preview-body,.document-preview-body pre,.settings-modal,.usage-scroll)::-webkit-scrollbar{width:10px;height:10px}
+:is(.messages,.conversation-list,.document-preview-body,.document-preview-body pre,.settings-modal,.usage-scroll)::-webkit-scrollbar-track{background:var(--scroll-track)}
+:is(.messages,.conversation-list,.document-preview-body,.document-preview-body pre,.settings-modal,.usage-scroll)::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border:2px solid var(--scroll-track);border-radius:10px}
+:is(.messages,.conversation-list,.document-preview-body,.document-preview-body pre,.settings-modal,.usage-scroll)::-webkit-scrollbar-thumb:hover{background:var(--scroll-thumb-hover)}
