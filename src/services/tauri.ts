@@ -1,4 +1,4 @@
-import type { Attachment, ConnectionResult, Conversation, Message, Settings, ApiProfile, Usage, ModelPrice } from '../types'
+import type { Attachment, ConnectionResult, Conversation, Message, Settings, ApiProfile, Usage, ModelPrice, MessageReference, Capabilities, ProviderModel } from '../types'
 
 const isTauri = '__TAURI_INTERNALS__' in window
 async function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
@@ -9,6 +9,12 @@ async function invoke<T>(command: string, args?: Record<string, unknown>): Promi
 
 export const api = {
   isTauri,
+  getProviderModels: (settings: Settings) => invoke<ProviderModel[]>('get_provider_models', {settings}),
+  getTree: (conversationId: string) => invoke<{messages: Message[]; leaf: string | null}>('get_tree', {conversationId}),
+  selectBranch: (conversationId: string, leaf: string | null) => invoke<void>('select_branch', {conversationId, leaf}),
+  getExtension: <T>(key: string) => invoke<T | null>('get_extension', {key}),
+  saveExtension: (key: string, value: unknown) => invoke<void>('save_extension', {key, value}),
+  detectCapabilities: (settings: Settings) => invoke<Capabilities>('detect_capabilities', {settings}),
   getConversations: () => invoke<Conversation[]>('get_conversations'),
   searchConversations: (query: string) => invoke<Conversation[]>('search_conversations', { query }),
   setConversationPrompt: (conversationId: string, prompt: string) => invoke<void>('set_conversation_prompt', { conversationId, prompt }),
@@ -23,15 +29,16 @@ export const api = {
   deleteConversation: (conversationId: string) => invoke<void>('delete_conversation', { conversationId }),
   getSettings: () => invoke<Settings>('get_settings'),
   getProfiles: () => invoke<ApiProfile[]>('get_profiles'),
-  saveProfile: (profile: ApiProfile, apiKey: string) => invoke<void>('save_profile', { profile, apiKey }),
+  saveProfile: (profile: ApiProfile, apiKey: string) => invoke<ApiProfile>('save_profile', { profile, apiKey }),
+  importLegacyProfile: () => invoke<ApiProfile>('import_legacy_profile'),
   deleteProfile: (id: string) => invoke<void>('delete_profile', { id }),
   getUsage: () => invoke<Usage[]>('get_usage'),
   getModelPrices: () => invoke<ModelPrice[]>('get_model_prices'),
   saveModelPrice: (price: ModelPrice) => invoke<void>('save_model_price', { price }),
   saveCodeFile: (path: string, content: string, expected: string) => invoke<void>('save_code_file', { path, content, expected }),
-  saveSettings: (settings: Settings) => invoke<void>('save_settings', { settings }),
+  saveSettings: (settings: Settings, conversationId?: string) => invoke<void>('save_settings', { settings, conversationId: conversationId || null }),
   testConnection: (settings: Settings) => invoke<ConnectionResult>('test_connection', { settings }),
-  sendMessage: (conversationId: string, content: string, settings: Settings, persistUser = true, attachments: Attachment[] = []) => invoke<void>('send_message', { conversationId, content, settings, persistUser, attachments }),
+  sendMessage: (conversationId: string, content: string, settings: Settings, persistUser = true, attachments: Attachment[] = [], parentId: string | null = null, references: MessageReference[] = []) => invoke<void>('send_message', { conversationId, content, settings, persistUser, attachments, parentId, references }),
   deleteLastAssistant: (conversationId: string) => invoke<void>('delete_last_assistant', { conversationId }),
   stopGeneration: () => invoke<void>('stop_generation')
 }

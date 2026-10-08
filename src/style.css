@@ -22,3 +22,26 @@
 html[data-theme="light"] .usage-nav { color:#615e59; }
 html[data-theme="light"] .usage-nav:hover,html[data-theme="light"] .usage-nav.active { background:#e9e5df;color:#252422; }
 @media(max-width:680px) { .usage-nav { font-size:0;text-align:center;padding:10px 4px; }.usage-nav::first-letter { font-size:20px; } }
+
+/* v0.1.3 conversation tools */
+.conversation-filters { display:grid; gap:6px; padding:8px 12px; }
+.conversation-filters select,.header-actions select { max-width:160px; background:var(--bg); color:inherit; border:1px solid var(--line); border-radius:6px; padding:5px; }
+.message-reference { border-left:3px solid #b37b59; padding:8px 12px; margin:10px 0; background:rgba(140,110,80,.08); max-height:180px; overflow:auto; white-space:pre-wrap; }
+.message-tools { flex-wrap:wrap; align-items:center; }
+.capability-tags { display:flex; flex-wrap:wrap; gap:8px; padding:12px 0; }
+.capability-tags span { padding:5px 9px; border:1px solid var(--line); border-radius:12px; }
+.capability-tags small { width:100%; }
+.preset-manager { padding:12px 0; }
+.preset-manager input[type=checkbox] { width:auto; margin-right:6px; }
+.message details { padding:8px 0; }
+.message details pre { max-height:240px; overflow:auto; font-size:12px; white-space:pre-wrap; }
+.conversation-actions { flex-wrap:wrap; }
+
+.tree-picker { max-height:240px; overflow:auto; }
+.source-detail { flex:1 1 240px; border:1px solid var(--line); border-radius:8px; padding:8px; font-size:12px; }
+.source-detail summary { cursor:pointer; }
+.source-detail a { display:block; margin-top:8px; }
+@media(max-width:680px) { .conversation-filters {display:none;} .settings-button {display:block;font-size:0;} .settings-button::first-letter {font-size:20px;} .header-actions button:first-child {display:block;} .chat-header .header-actions {justify-content:flex-start;} .chat-view>header {height:auto!important; min-height:84px;flex:none;} }
+
+.message-edit textarea {width:100%;resize:vertical;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit;}
+.message-edit button {margin:8px 8px 8px 0;}

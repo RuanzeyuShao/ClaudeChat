@@ -8,3 +8,5 @@ src-tauri/gen/schemas/
 .claude/
 tauri-build*.log
 tauri-build*.err.log
+
+.target-v013/

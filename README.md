@@ -19,9 +19,49 @@
 
 如果直达链接不可用，可前往 [v0.1.2 Release 页面](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.2) 下载 `ClaudeChat_0.1.2_x64-setup.exe`。
 
-> 使用本客户端需要可用的 Anthropic API 或兼容服务 API Key。第三方服务支持的模型、搜索能力及费用由相应服务决定。
+> 使用本客户端需要可用的 Provider API Key（Anthropic、OpenAI、DeepSeek、Kimi/Moonshot、GLM/Zhipu 或兼容服务）。第三方服务支持的模型、搜索能力及费用由相应服务决定。
 
 ## 当前功能
+
+### v0.1.3（当前源码）
+
+API 管理采用独立的「我的 API」列表与编辑区，按照「服务 → 连接 → 默认模型」填写，可读取服务模型列表或手动输入。名称可自动生成；密钥和模型未填全时可以先保存草稿，补齐后再启用。「保存配置」不会切换其他连接，「保存并启用」会用于当前聊天。编辑正在使用的配置会同步当前连接。高级参数和单价默认收起，Prompt 预设及通用偏好分为单独页签。
+
+编辑时留空 API Key 会保留原密钥；复制配置不复制密钥；切换配置或关闭编辑区前会提示未保存内容。从 Chat 服务的管理入口打开时直接选中相应配置，旧版全局连接可导入。配置写入、删除及关联清理使用 SQLite 事务，数据库保存失败时尝试恢复之前的系统密钥。删除当前 API 会停用连接，同时保留全部聊天和历史用量。此调整沿用现有数据表，版本仍为 0.1.3。
+
+聊天服务分组支持折叠，折叠状态在本机记忆；输入框服务按钮可重新展开当前服务。新增 Grok Chat，支持自定义 Base URL、API Key、模型发现、流式聊天、图片和 Usage，继续使用统一 Adapter。Grok 当前走 Chat Completions，联网搜索使用 SearXNG；未配置搜索地址时默认关闭搜索，不将原生搜索标成已支持。协议参考 [xAI Chat Completions](https://docs.x.ai/developers/rest-api-reference/inference/chat-completions)。版本仍为 0.1.3。
+
+界面新增 Chat Provider Selector：左侧统一显示 Claude Chat、GPT Chat、Kimi Chat、DeepSeek Chat、GLM Chat；点击快速切换并在右侧弹出配置面板。面板提供 API Profile、API 模型列表与筛选、自定义模型、独立搜索模型、思考滑块、联网模式、搜索地址和能力标签。配置按 Chat 服务记忆，底层 Provider Adapter 不变，版本继续为 0.1.3。
+
+v0.1.3 继续使用 Vue 3 + TypeScript + Tauri 2 + Rust + SQLite，保持纯对话定位。上方链接仍是已经发布的 v0.1.2 安装包；v0.1.3 可从当前源码构建。
+
+- **对话树与回答版本**：历史用户消息可编辑并重发；助手消息可重新生成或继续生成。每次操作新增节点，原消息与后续分支完整保留；使用 `1/3`、`2/3` 切换同一父节点下的版本。“对话树”可查看全部节点、恢复任意节点上下文，并引用其他分支的消息。导出当前选择的分支。
+- **Prompt / Persona**：设置中保存、编辑、删除预设，可独立选择是否绑定 System Prompt、模型、Thinking、搜索模式和 API Profile；聊天顶部可直接应用。
+- **Profile 能力检测**：“测试当前连接”检查连接、Streaming、Thinking、Vision、Tool、Search 和服务返回的上下文长度。仅以响应证据标注已验证；Vision 接受图片请求时标注“请求已接受”，并不等于图像语义能力已验证。服务未返回上下文长度则显示未知；请求被拒绝与未知状态分开显示。检测会发起少量实际请求并产生服务商费用，检测用量不计入聊天统计。
+- **历史引用**：引用整条消息或该消息中的选中文字；输入框显示待引用内容，发送后保存来源 ID 和文字快照，可点击返回来源节点。
+- **会话管理**：置顶、文件夹和多标签，支持组合筛选；选定文件夹或标签后可统一改名或移除分类。
+- **搜索来源**：显示检索状态、服务返回的关键词、展开的来源卡片，以及正文编号和 Provider 原始引用标识。重新搜索创建新版本。Provider 未返回的关键词和来源不会补造。
+- **统一 Provider Adapter**：Anthropic Messages、OpenAI Chat Completions、OpenAI Compatible、DeepSeek、Kimi/Moonshot、GLM/Zhipu。用户输入 Base URL、API Key、模型；支持完整 endpoint、自定义路径和模型，不绑定官方地址或固定模型清单。Provider 分别配置认证、Thinking、内置搜索、流式字段、Vision 和 Usage；保留服务返回的 reasoning_content 以支持后续对话。
+- **模型附加参数**：可填写 JSON 覆盖模型特定 Thinking / effort 参数；值为 `null` 可移除默认字段。例如需要 adaptive Thinking 时可设置 `{"thinking":{"type":"adaptive"},"output_config":{"effort":"medium"}}`。这允许适配不同模型版本，而无需在代码中写死模型名。客户端保护模型、消息、工具和流式开关。
+
+内置搜索可用于支持该接口的 Anthropic、OpenAI、Kimi 或 GLM 模型；Kimi 的 `$web_search` 会在最多 5 轮内完成工具往返。DeepSeek 和通用兼容服务可使用 SearXNG。能力取决于实际模型及 API 网关。客户端不会执行任意函数、终端命令或自动修改文件。
+
+#### 数据升级与验证
+
+启动时先沿用既有初始化和 v2 迁移，再执行事务化的 **v3 增量迁移**：新增 `message_nodes`、`conversation_tree`，按旧消息的 `created_at,rowid` 建立线性父子关系，并通过 `PRAGMA user_version=3` 记录版本。预设、分类、模型附加参数和能力结果存入已有 settings 表的 `v3:` 命名空间。不会删除或重建数据库、旧消息、附件、Profile、价格、Usage 或用户配置；API Key 仍在原系统凭据位置。
+
+新回答、搜索元数据、Usage 和回答节点的对应关系在同一事务中提交。旧版 Usage 与回答数量一致时建立历史对应关系；若旧版重新生成曾留下多余 Usage，则保留全部统计且不猜测对应节点。
+
+```powershell
+npm run build
+cargo test --manifest-path src-tauri/Cargo.toml
+npm run tauri:dev
+npm run tauri:build
+```
+
+回归测试覆盖旧数据库升级及重复启动、迁移失败回滚、编辑和再生成保留分支、附件保留、跨会话节点校验、回答与 Usage 原子提交、UTF-8/CRLF 分片、API 流错误、Kimi 搜索工具往返和基于响应证据的能力检测。测试使用内存数据库和本地模拟服务，不读取用户数据库或真实 API Key。
+
+Provider 参考：[OpenAI reasoning](https://developers.openai.com/api/docs/guides/reasoning)、[DeepSeek thinking](https://api-docs.deepseek.com/guides/thinking_mode/)、[Kimi thinking](https://platform.kimi.ai/docs/guide/use-thinking-models)、[Kimi web search](https://platform.kimi.ai/docs/guide/use-web-search)、[GLM 对话补全](https://docs.bigmodel.cn/api-reference/%E6%A8%A1%E5%9E%8B-api/%E5%AF%B9%E8%AF%9D%E8%A1%A5%E5%85%A8)。
 
 ### v0.1.2（源码）
 
@@ -67,7 +107,7 @@ ClaudeChat 适合想直接聊天、自己选择 API 地址和模型的 Windows �
 
 ## 后续计划
 
-继续扩展 Provider 适配器。目前支持 Anthropic Messages 与 OpenAI Compatible 请求格式；旧版 `.doc` 请先转换为 `.docx`。
+继续完善各 Provider 的真实服务兼容性及模型元数据识别；旧版 `.doc` 请先转换为 `.docx`。
 
 ## 技术栈
 

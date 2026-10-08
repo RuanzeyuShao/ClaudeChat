@@ -7,6 +7,10 @@ import SettingsPanel from './components/SettingsPanel.vue'
 import { useChatStore } from './stores/chat'
 
 const chat = useChatStore()
+import type { ProviderKind } from './types'
+const settingsProvider=ref<ProviderKind>()
+const settingsProfileId=ref<string>()
+const openSettings=(provider?:ProviderKind,profileId?:string)=>{settingsProvider.value=provider;settingsProfileId.value=profileId;showSettings.value=true}
 const showSettings = ref(false)
 const page = ref<'chat' | 'usage'>('chat')
 const UsageDashboard = defineAsyncComponent(() => import('./views/UsageDashboard.vue'))
@@ -21,16 +25,16 @@ const resizeSidebar = (delta: number) => {
   localStorage.setItem('claudechat.sidebarWidth', String(preferredSidebarWidth.value))
 }
 const onWindowResize = () => { viewportWidth.value = window.innerWidth }
-onMounted(() => { window.addEventListener('resize', onWindowResize); chat.initialize() })
+onMounted(() => { window.addEventListener('resize', onWindowResize); chat.initialize().catch(e=>{chat.error=String(e)}) })
 onUnmounted(() => window.removeEventListener('resize', onWindowResize))
 </script>
 
 <template>
   <main class="app-shell">
-    <Sidebar :page="page" :style="{ width: `${sidebarWidth}px` }" @open-settings="showSettings = true" @open-usage="page = 'usage'" @open-chat="page = 'chat'" />
+    <Sidebar :page="page" :style="{ width: `${sidebarWidth}px` }" @open-settings="openSettings" @open-usage="page = 'usage'" @open-chat="page = 'chat'" />
     <PaneResizeHandle label="调整侧边栏宽度" @resize="resizeSidebar" @reset="resizeSidebar(264 - sidebarWidth)" />
-    <ChatView v-show="page === 'chat'" @open-settings="showSettings = true" />
+    <ChatView v-show="page === 'chat'" @open-settings="openSettings" />
     <UsageDashboard v-if="page === 'usage'" />
-    <SettingsPanel v-if="showSettings" @close="showSettings = false" />
+    <SettingsPanel v-if="showSettings" :initial-provider="settingsProvider" :initial-profile-id="settingsProfileId" @close="showSettings = false" />
   </main>
 </template>

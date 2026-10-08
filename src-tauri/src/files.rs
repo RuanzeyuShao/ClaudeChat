@@ -167,7 +167,7 @@ fn wrap(text:&str,n:usize)->Vec<String>{if text.is_empty(){return vec![];}let mu
   }
   #[test] fn exports_chinese_pdf() {
     let c=Conversation{id:"1".into(),title:"中文会话".into(),model:"x".into(),created_at:"".into(),updated_at:"".into(),messages:vec![],system_prompt:"".into()};
-    let m=Message{id:"1".into(),role:"assistant".into(),content:"# 标题\n\n```rust\nlet value = 1;\n```".into(),created_at:"2026-09-29".into(),sources:None,attachments:vec![]};
+    let m=Message{usage_id:None,reasoning_content:String::new(),parent_id:None,references:vec![],search_trace:None,id:"1".into(),role:"assistant".into(),content:"# 标题\n\n```rust\nlet value = 1;\n```".into(),created_at:"2026-09-29".into(),sources:None,attachments:vec![]};
     let path=std::env::temp_dir().join(format!("claude-chat-{}.pdf",Uuid::new_v4()));
     export_pdf(&c,&[m],&path).unwrap(); assert!(std::fs::metadata(&path).unwrap().len()>1000); std::fs::remove_file(path).unwrap();
   }

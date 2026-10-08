@@ -12,6 +12,6 @@ pub async fn searxng(base_url:&str,query:&str)->Result<Vec<Source>> {
   Ok(json["results"].as_array().ok_or_else(||anyhow!("SearXNG 未返回 JSON 搜索结果，请确认实例已启用 JSON 格式"))?.iter().filter_map(|r|{
     let url=r["url"].as_str()?;
     if !url.starts_with("https://")&&!url.starts_with("http://"){return None;}
-    Some(Source{title:r["title"].as_str().unwrap_or(url).to_string(),url:url.to_string(),snippet:r["content"].as_str().unwrap_or("").chars().take(300).collect()})
+    Some(Source{citation:String::new(),title:r["title"].as_str().unwrap_or(url).to_string(),url:url.to_string(),snippet:r["content"].as_str().unwrap_or("").chars().take(300).collect()})
   }).take(5).collect())
 }
