@@ -11,13 +11,13 @@
 
 ## 下载并使用
 
-**Windows 用户：[下载 ClaudeChat v0.1.3 安装程序（.exe）](https://github.com/RuanzeyuShao/ClaudeChat/raw/refs/heads/v0.1.3/installers/v0.1.3/ClaudeChat_0.1.3_x64-setup.exe)**
+**Windows 用户：[下载 ClaudeChat v0.1.3 安装程序（.exe）](https://github.com/RuanzeyuShao/ClaudeChat/releases/download/v0.1.3/ClaudeChat_0.1.3_x64-setup.exe)**
 
-上方是 `v0.1.3` 分支内的 Windows x64 安装包，包含 API 配置管理优化。安装包和 SHA-256 校验文件位于 `installers/v0.1.3/`。也可从源码运行：安装 Node.js 和 Rust 后执行 `npm install`、`npm run tauri:dev`。
+上方是正式发布的 Windows x64 安装包，包含 API 配置管理优化。安装包和 SHA-256 校验文件均可在 [v0.1.3 Release](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.3) 的 Assets 中下载；仓库备份位于 `v0.1.3` 分支的 `installers/v0.1.3/`。也可从源码运行：安装 Node.js 和 Rust 后执行 `npm install`、`npm run tauri:dev`。
 
 下载后双击安装，启动 ClaudeChat。首次使用时打开「设置」，填写 API Key；使用第三方兼容服务时，再填写该服务提供的 Base URL 和模型 ID。点击「测试连接」，成功后即可开始对话。无需安装 Node.js、Rust，也无需自行编译。
 
-如果直达链接不可用，可前往 [v0.1.3 安装包目录](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.3/installers/v0.1.3)，选择 EXE 后点击下载。旧版安装包仍可在 [v0.1.2 Release 页面](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.2) 获取。
+如果直达链接不可用，可前往 [v0.1.3 Release 页面](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.3) 下载，也可使用 [分支内的安装包备份](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.3/installers/v0.1.3)。旧版安装包仍可在 [v0.1.2 Release 页面](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.2) 获取。
 
 > 使用本客户端需要可用的 Provider API Key（Anthropic、OpenAI、DeepSeek、Kimi/Moonshot、GLM/Zhipu 或兼容服务）。第三方服务支持的模型、搜索能力及费用由相应服务决定。
 
@@ -33,7 +33,7 @@ API 管理采用独立的「我的 API」列表与编辑区，按照「服务 �
 
 界面新增 Chat Provider Selector：左侧统一显示 Claude Chat、GPT Chat、Kimi Chat、DeepSeek Chat、GLM Chat；点击快速切换并在右侧弹出配置面板。面板提供 API Profile、API 模型列表与筛选、自定义模型、独立搜索模型、思考滑块、联网模式、搜索地址和能力标签。配置按 Chat 服务记忆，底层 Provider Adapter 不变，版本继续为 0.1.3。
 
-v0.1.3 继续使用 Vue 3 + TypeScript + Tauri 2 + Rust + SQLite，保持纯对话定位。上方可下载此分支内的 v0.1.3 安装包，也可从当前源码构建。
+v0.1.3 继续使用 Vue 3 + TypeScript + Tauri 2 + Rust + SQLite，保持纯对话定位。上方可下载 Releases 中的 v0.1.3 安装包，也可从当前源码构建。
 
 - **对话树与回答版本**：历史用户消息可编辑并重发；助手消息可重新生成或继续生成。每次操作新增节点，原消息与后续分支完整保留；使用 `1/3`、`2/3` 切换同一父节点下的版本。“对话树”可查看全部节点、恢复任意节点上下文，并引用其他分支的消息。导出当前选择的分支。
 - **Prompt / Persona**：设置中保存、编辑、删除预设，可独立选择是否绑定 System Prompt、模型、Thinking、搜索模式和 API Profile；聊天顶部可直接应用。
