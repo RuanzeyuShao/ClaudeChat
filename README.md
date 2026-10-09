@@ -11,9 +11,9 @@
 
 ## 下载并使用
 
-**Windows 用户：[下载 ClaudeChat v0.1.4 安装程序（.exe）](https://github.com/RuanzeyuShao/ClaudeChat/raw/refs/heads/v0.1.4/installers/v0.1.4/ClaudeChat_0.1.4_x64-setup.exe)**
+**Windows 用户：[下载 ClaudeChat v0.1.4 安装程序（.exe）](https://github.com/RuanzeyuShao/ClaudeChat/releases/download/v0.1.4/ClaudeChat_0.1.4_x64-setup.exe)**
 
-v0.1.4 的源码、Windows x64 安装包与校验文件已提交到 [v0.1.4 分支](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4)，安装包目录为 [installers/v0.1.4](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4/installers/v0.1.4)。[SHA-256 校验文件](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.4/installers/v0.1.4/SHA256SUMS.txt)和[修改／测试报告](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.4/docs/v0.1.4-test-report.md)一并提供。此次采用版本分支交付，右侧 Releases 仍显示已有 v0.1.3 Release；v0.1.4 请使用上面的下载入口。
+**[v0.1.4 正式 Release（Latest）](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.4)** 已发布，展开本页的 **Assets** 可下载 EXE、[SHA-256 校验文件](https://github.com/RuanzeyuShao/ClaudeChat/releases/download/v0.1.4/SHA256SUMS.txt)和构建清单。[修改／测试报告](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.4/docs/v0.1.4-test-report.md)与源码保存在 [v0.1.4 分支](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4)，分支的 [installers/v0.1.4](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4/installers/v0.1.4) 同时保留安装包备份。
 
 从源码运行 v0.1.4 时，先切换到 `v0.1.4` 分支，再执行 `npm ci`、`npm run tauri:dev`。更新安装前请先退出正在运行的 ClaudeChat。
 
