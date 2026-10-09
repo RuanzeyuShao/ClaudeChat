@@ -225,13 +225,31 @@ impl Database {
         usage: &Usage,
         reasoning_content: &str,
     ) -> Result<()> {
+        self.save_response_with_origin(conversation_id,content,sources,trace,usage,reasoning_content,None)
+    }
+    pub fn save_response_with_origin(
+        &self, conversation_id:&str,content:&str,sources:&Vec<Source>,trace:&serde_json::Value,usage:&Usage,reasoning_content:&str,origin:Option<&serde_json::Value>,
+    )->Result<()> {
         let tx = self.conn.unchecked_transaction()?;
         self.insert_message(conversation_id, "assistant", content, Some(sources))?;
         self.annotate_leaf(conversation_id, &[], Some(trace))?;
         self.add_usage(usage)?;
         self.bind_response(conversation_id, &usage.id, reasoning_content)?;
+        if let Some(origin)=origin {self.record_request_origin(&usage.id,origin)?;}
         tx.commit()?;
         Ok(())
+    }
+    fn record_request_origin(&self,id:&str,origin:&serde_json::Value)->Result<()> {
+        let mut origins=self.extension("v4:requestOrigins")?;
+        if origins.is_null(){origins=serde_json::json!({})}
+        anyhow::ensure!(origins.is_object(),"请求来源记录无效");
+        origins[id]=origin.clone();
+        self.set_setting("v4:requestOrigins",&origins.to_string())
+    }
+    pub fn add_usage_with_origin(&self,usage:&Usage,origin:&serde_json::Value)->Result<()> {
+        let tx=self.conn.unchecked_transaction()?;
+        self.add_usage(usage)?;self.record_request_origin(&usage.id,origin)?;
+        tx.commit()?;Ok(())
     }
     fn insert_message(
         &self,

@@ -308,3 +308,89 @@ fn references_and_extension_data_survive_branch_switch() {
     );
     assert_eq!(db.extension("v3:presets").unwrap()[0]["name"], "persona");
 }
+
+fn switch_profile(db:&Database,id:&str,provider:&str,base:&str) {
+    db.save_profile_with_credentials(&ApiProfile{id:id.into(),name:format!("Profile {id}"),base_url:base.into(),provider:provider.into(),model:"profile-default-must-not-override".into(),thinking:"off".into(),input_price:1.0,output_price:2.0,has_key:false,request_options:serde_json::Value::Null},false).unwrap();
+}
+fn choice(db:&Database,id:&str,model:&str)->crate::commands::Settings {
+    let mut settings=crate::connection::read(db).unwrap();settings.profile_id=id.into();settings.model=model.into();settings.thinking="low".into();settings.search_mode="off".into();settings.web_search=false;settings
+}
+fn switch_sse(anthropic:bool,answer:&str)->String {
+    let values=if anthropic {vec![serde_json::json!({"type":"message_start","message":{"usage":{"input_tokens":7}}}),serde_json::json!({"type":"content_block_delta","delta":{"text":answer}}),serde_json::json!({"type":"message_delta","usage":{"output_tokens":4}})]}
+        else{vec![serde_json::json!({"choices":[{"delta":{"content":answer,"reasoning_content":"request-specific thought"}}]}),serde_json::json!({"choices":[],"usage":{"prompt_tokens":7,"completion_tokens":4,"completion_tokens_details":{"reasoning_tokens":1}}})]};
+    values.iter().map(|value|format!("data: {value}\n\n")).collect::<String>()+"data: [DONE]\n\n"
+}
+#[tokio::test]
+async fn model_switch_roundtrip_routes_http_and_preserves_tree_attachments_usage_and_restart() {
+    use crate::profile_service::Secrets;
+    let db=legacy();migrate_v3(&db.conn).unwrap();
+    let before=serde_json::to_value(db.messages("c").unwrap()).unwrap();
+    let keys=secrets();
+    let (claude,c)=crate::test_http::serve_observed(vec![(200,"text/event-stream",switch_sse(true,"Claude first")),(200,"text/event-stream",switch_sse(true,"Claude last"))]);
+    let (deepseek,d)=crate::test_http::serve_observed(vec![(200,"text/event-stream",switch_sse(false,"DeepSeek"))]);
+    let (gpt,g)=crate::test_http::serve_observed(vec![(200,"text/event-stream",switch_sse(false,"GPT"))]);
+    for (id,kind,base) in [("claude","anthropic-compatible",claude.as_str()),("deepseek","deepseek",deepseek.as_str()),("gpt","openai",gpt.as_str())] {switch_profile(&db,id,kind,base);keys.write(id,&format!("mock-{id}")).unwrap();}
+    let image=Attachment{id:"image".into(),name:"pixel.png".into(),mime:"image/png".into(),kind:"image".into(),size:8,text:None,data:Some("iVBORw0KGgo=".into())};
+    for (index,(id,model)) in [("claude","claude-selected"),("deepseek","deepseek-selected"),("gpt","gpt-selected"),("claude","claude-return")].iter().enumerate() {
+        let saved=crate::connection::save(&db,choice(&db,id,model),Some("c")).unwrap();
+        assert_eq!(saved.model,*model);assert_eq!(saved.base_url,match *id{"claude"=>claude.as_str(),"deepseek"=>deepseek.as_str(),_=>gpt.as_str()});
+        db.add_user_with_attachments("c",&format!("round {index}"),if index==0{std::slice::from_ref(&image)}else{&[]}).unwrap();
+        let history=crate::connection::prepare_history(db.active_messages("c").unwrap(),&db.extension("v4:requestOrigins").unwrap(),&saved);
+        let (answer,sources,input,output,thinking,_,reasoning)=crate::provider::stream(&saved,keys.read(id).unwrap().unwrap(),history,"旧 Prompt".into(),false,std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),|_|Ok(())).await.unwrap();
+        let usage=Usage{id:format!("switch-{index}"),conversation_id:"c".into(),profile_id:id.to_string(),profile_name:format!("Profile {id}"),model:model.to_string(),input_tokens:input,output_tokens:output,thinking_tokens:thinking,duration_ms:100,estimated_cost:(input as f64+output as f64*2.0)/1_000_000.0,created_at:format!("2026-10-09T00:00:0{index}Z")};
+        db.save_response_with_origin("c",&answer,&sources,&serde_json::json!({"status":"off"}),&usage,&reasoning,Some(&crate::connection::identity(&saved,&usage.profile_name))).unwrap();
+    }
+    let cr=c.join().unwrap();let dr=d.join().unwrap();let gr=g.join().unwrap();
+    for request in &cr {assert_eq!(request.path,"/v1/messages");assert_eq!(request.headers["x-api-key"],"mock-claude");assert_eq!(request.body["system"],"旧 Prompt");}
+    assert_eq!(cr[0].body["model"],"claude-selected");assert_eq!(cr[1].body["model"],"claude-return");
+    assert_eq!(dr[0].path,"/v1/chat/completions");assert_eq!(dr[0].headers["authorization"],"Bearer mock-deepseek");assert_eq!(dr[0].body["model"],"deepseek-selected");
+    assert_eq!(gr[0].path,"/v1/chat/completions");assert_eq!(gr[0].headers["authorization"],"Bearer mock-gpt");assert_eq!(gr[0].body["model"],"gpt-selected");
+    assert!(cr[1].body["messages"].to_string().contains("GPT"));assert!(gr[0].body["messages"].to_string().contains("DeepSeek"));
+    assert!(cr[0].body["messages"].to_string().contains("旧文档"));assert!(cr[1].body["messages"].to_string().contains("base64"));assert!(dr[0].body["messages"].to_string().contains("image_url"));assert!(!gr[0].body["messages"].to_string().contains("reasoning_content"));
+    let messages=db.messages("c").unwrap();assert_eq!(messages.len(),10);assert_eq!(serde_json::to_value(&messages[..2]).unwrap(),before);
+    assert_eq!(db.active_messages("c").unwrap().len(),10);assert_eq!(db.attachment_data("file").unwrap().as_deref(),Some("b2xk"));
+    let origins=db.extension("v4:requestOrigins").unwrap();assert_eq!(origins["switch-0"]["provider"],"anthropic-compatible");assert_eq!(origins["switch-1"]["provider"],"deepseek");assert_eq!(origins["switch-2"]["provider"],"openai");assert_eq!(origins["switch-0"]["model"],"claude-selected");assert!(origins["switch-0"].get("apiKey").is_none());
+    let usage=db.usage().unwrap();assert_eq!(usage.len(),5);assert_eq!(usage.iter().find(|u|u.id=="usage").unwrap().estimated_cost,0.03);
+    for index in 0..4 {let row=usage.iter().find(|u|u.id==format!("switch-{index}")).unwrap();assert_eq!((row.input_tokens,row.output_tokens),(7,4));assert_eq!(row.estimated_cost,0.000015);assert_eq!(row.model,origins[&row.id]["model"].as_str().unwrap());}
+    crate::connection::save(&db,choice(&db,"gpt","temporary-global"),None).unwrap();
+    let restored=crate::connection::restore(&db,"c").unwrap();assert_eq!(restored.provider,"anthropic-compatible");assert_eq!(restored.model,"claude-return");assert_eq!(restored.base_url,claude);assert_eq!(db.extension("v4:lastConversation").unwrap(),"c");
+    db.set_leaf("c",Some("a")).unwrap();assert_eq!(db.active_messages("c").unwrap().len(),2);assert_eq!(db.messages("c").unwrap().len(),10);
+}
+#[test]
+fn connection_failure_rolls_back_global_conversation_snapshot_and_reply_identity() {
+    let db=legacy();migrate_v3(&db.conn).unwrap();switch_profile(&db,"switch","openai","https://example.com/v1");
+    crate::connection::save(&db,choice(&db,"switch","original"),Some("c")).unwrap();
+    let before=db.extension("v4:conversationConnection:c").unwrap();
+    db.conn.execute_batch("CREATE TRIGGER reject_connection BEFORE UPDATE ON settings WHEN NEW.key='v4:conversationConnection:c' BEGIN SELECT RAISE(ABORT,'simulated disk error'); END;").unwrap();
+    assert!(crate::connection::save(&db,choice(&db,"switch","new-model"),Some("c")).is_err());assert_eq!(crate::connection::read(&db).unwrap().model,"original");assert_eq!(db.conversations().unwrap()[0].model,"original");assert_eq!(db.extension("v4:conversationConnection:c").unwrap(),before);
+    let mut usage=db.usage().unwrap().remove(0);usage.id="new".into();db.conn.execute_batch("CREATE TRIGGER reject_origin BEFORE INSERT ON settings WHEN NEW.key='v4:requestOrigins' BEGIN SELECT RAISE(ABORT,'simulated disk error'); END;").unwrap();
+    assert!(db.save_response_with_origin("c","new reply",&vec![],&serde_json::json!({}),&usage,"thought",Some(&before)).is_err());assert_eq!(db.messages("c").unwrap().len(),2);assert_eq!(db.usage().unwrap().len(),1);
+}
+#[test]
+fn generation_guard_blocks_switch_but_allows_appearance_changes_and_releases_on_failure() {
+    let db=legacy();let original=crate::connection::read(&db).unwrap();let mut changed=original.clone();changed.model="new".into();
+    let generating=std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));assert!(crate::connection::lock_if_changed(&original,&changed,&generating).is_err());
+    let mut appearance=original.clone();appearance.theme="light".into();assert!(crate::connection::lock_if_changed(&original,&appearance,&generating).unwrap().is_none());assert!(generating.load(std::sync::atomic::Ordering::Relaxed));
+    generating.store(false,std::sync::atomic::Ordering::Relaxed);let guard=crate::connection::lock_if_changed(&original,&changed,&generating).unwrap();assert!(generating.load(std::sync::atomic::Ordering::Relaxed));drop(guard);assert!(!generating.load(std::sync::atomic::Ordering::Relaxed));
+}
+#[test]
+fn restoring_legacy_history_keeps_complete_last_connection_and_all_six_providers() {
+    let db=legacy();migrate_v3(&db.conn).unwrap();
+    for (index,provider) in ["anthropic-compatible","openai","deepseek","moonshot","zhipu","grok"].iter().enumerate(){let id=format!("provider-{index}");switch_profile(&db,&id,provider,"https://example.com/custom");let saved=crate::connection::save(&db,choice(&db,&id,"selected-custom-model"),None).unwrap();let restored=crate::connection::restore(&db,"c").unwrap();if index==0{assert_eq!(restored.provider,saved.provider)}else{crate::connection::save(&db,choice(&db,&id,"selected-custom-model"),Some("c")).unwrap();assert_eq!(crate::connection::restore(&db,"c").unwrap().provider,*provider)}assert_eq!(db.messages("c").unwrap().len(),2);}
+}
+#[test]
+fn foreign_reasoning_is_filtered_only_from_request_copies_not_saved_messages() {
+    let db=legacy();let mut target=crate::connection::read(&db).unwrap();target.provider="deepseek".into();target.model="selected".into();
+    let message=Message{id:"answer".into(),usage_id:Some("usage".into()),role:"assistant".into(),content:"keep this answer".into(),reasoning_content:"private reasoning".into(),..Default::default()};
+    let same=serde_json::json!({"usage":{"provider":"deepseek","model":"selected"}});assert_eq!(crate::connection::prepare_history(vec![message.clone()],&same,&target)[0].reasoning_content,"private reasoning");
+    let other=serde_json::json!({"usage":{"provider":"anthropic-compatible","model":"selected"}});assert!(crate::connection::prepare_history(vec![message.clone()],&other,&target)[0].reasoning_content.is_empty());assert_eq!(message.reasoning_content,"private reasoning");
+    target.model="different-model".into();assert!(crate::connection::prepare_history(vec![message.clone()],&same,&target)[0].reasoning_content.is_empty());
+    assert_eq!(crate::connection::prepare_history(vec![message],&serde_json::Value::Null,&target)[0].reasoning_content,"private reasoning");
+}
+#[test]
+fn search_mode_and_flag_restore_together_and_snapshots_never_store_api_keys() {
+    let db=legacy();migrate_v3(&db.conn).unwrap();switch_profile(&db,"chosen","openai","https://example.com/v1");
+    let mut original=choice(&db,"chosen","custom-model");original.search_mode="auto".into();original.web_search=true;original.api_key="mock-key-must-not-persist".into();
+    crate::connection::save(&db,original.clone(),Some("c")).unwrap();let mut other=original;other.web_search=false;other.search_mode="off".into();crate::connection::save(&db,other,None).unwrap();
+    let restored=crate::connection::restore(&db,"c").unwrap();assert!(restored.web_search);assert_eq!(restored.search_mode,"auto");assert!(restored.api_key.is_empty());let snapshot=db.extension("v4:conversationConnection:c").unwrap();assert!(snapshot.get("apiKey").is_none());assert!(!snapshot.to_string().contains("mock-key"));
+}

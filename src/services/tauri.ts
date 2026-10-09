@@ -12,6 +12,7 @@ export const api = {
   getProviderModels: (settings: Settings) => invoke<ProviderModel[]>('get_provider_models', {settings}),
   getTree: (conversationId: string) => invoke<{messages: Message[]; leaf: string | null}>('get_tree', {conversationId}),
   selectBranch: (conversationId: string, leaf: string | null) => invoke<void>('select_branch', {conversationId, leaf}),
+  selectConversation: (conversationId:string)=>invoke<Settings>('select_conversation',{conversationId}),
   getExtension: <T>(key: string) => invoke<T | null>('get_extension', {key}),
   saveExtension: (key: string, value: unknown) => invoke<void>('save_extension', {key, value}),
   detectCapabilities: (settings: Settings) => invoke<Capabilities>('detect_capabilities', {settings}),
@@ -36,9 +37,10 @@ export const api = {
   getModelPrices: () => invoke<ModelPrice[]>('get_model_prices'),
   saveModelPrice: (price: ModelPrice) => invoke<void>('save_model_price', { price }),
   saveCodeFile: (path: string, content: string, expected: string) => invoke<void>('save_code_file', { path, content, expected }),
-  saveSettings: (settings: Settings, conversationId?: string) => invoke<void>('save_settings', { settings, conversationId: conversationId || null }),
+  saveCodeCopy: (path: string, content: string) => invoke<void>('save_code_copy', { path, content }),
+  saveSettings: (settings: Settings, conversationId?: string) => invoke<Settings>('save_settings', { settings, conversationId: conversationId || null }),
   testConnection: (settings: Settings) => invoke<ConnectionResult>('test_connection', { settings }),
-  sendMessage: (conversationId: string, content: string, settings: Settings, persistUser = true, attachments: Attachment[] = [], parentId: string | null = null, references: MessageReference[] = []) => invoke<void>('send_message', { conversationId, content, settings, persistUser, attachments, parentId, references }),
+  sendMessage: (conversationId: string, content: string, settings: Settings, persistUser = true, attachments: Attachment[] = [], parentId: string | null = null, references: MessageReference[] = [],requestId?:string) => invoke<void>('send_message', { conversationId, content, settings, persistUser, attachments, parentId, references,requestId:requestId || null }),
   deleteLastAssistant: (conversationId: string) => invoke<void>('delete_last_assistant', { conversationId }),
   stopGeneration: () => invoke<void>('stop_generation')
 }

@@ -1,14 +1,21 @@
 use serde_json::Value;
 use std::{
+    collections::BTreeMap,
     io::{Read, Write},
     net::TcpListener,
     thread,
     time::{Duration, Instant},
 };
+#[derive(Debug)]
+pub struct CapturedRequest {pub path:String,pub headers:BTreeMap<String,String>,pub body:Value}
 
 pub fn serve(
     responses: Vec<(u16, &'static str, String)>,
 ) -> (String, thread::JoinHandle<Vec<Value>>) {
+    let (base,task)=serve_observed(responses);
+    (base,thread::spawn(move||task.join().unwrap().into_iter().map(|r|r.body).collect()))
+}
+pub fn serve_observed(responses:Vec<(u16,&'static str,String)>)->(String,thread::JoinHandle<Vec<CapturedRequest>>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     listener.set_nonblocking(true).unwrap();
@@ -52,7 +59,9 @@ pub fn serve(
                         } else {
                             serde_json::from_slice(&bytes[end + 4..end + 4 + size]).unwrap()
                         };
-                        requests.push(value);
+                        let path=headers.lines().next().unwrap().split_whitespace().nth(1).unwrap().to_string();
+                        let headers=headers.lines().skip(1).filter_map(|line|line.split_once(':').map(|(k,v)|(k.to_ascii_lowercase(),v.trim().to_string()))).collect();
+                        requests.push(CapturedRequest{path,headers,body:value});
                         break;
                     }
                 }

@@ -5,6 +5,7 @@ export interface ApiProfile { requestOptions?: Record<string, unknown> | null; i
 export interface ModelPrice { profileId: string; model: string; inputPrice: number; outputPrice: number }
 export interface Usage { id: string; conversationId: string; profileId: string; profileName: string; model: string; inputTokens: number; outputTokens: number; thinkingTokens: number; durationMs: number; estimatedCost: number; createdAt: string }
 export interface MessageReference { messageId: string; text: string }
+export interface RequestIdentity { requestId?:string; provider: ProviderKind; model: string; profileId: string; profileName?: string; baseUrl: string; thinking: ThinkingLevel; webSearch:boolean; searchMode: Settings['searchMode']; searchProvider: Settings['searchProvider']; searchBaseUrl: string; searchModel?: string; requestOptions?: Record<string,unknown> | null }
 export interface Preset { id: string; name: string; systemPrompt?: string; model?: string; thinking?: ThinkingLevel; searchMode?: Settings['searchMode']; profileId?: string }
 export interface Organization { pinned?: boolean; folder?: string; tags?: string[] }
 export interface Capabilities { checkedAt: string; model: string; baseUrl: string; provider: string; connection: string; streaming: string; thinking: string; vision: string; tool: string; search: string; contextLength: number | null; detail?: string }

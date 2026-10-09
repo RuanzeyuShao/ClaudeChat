@@ -129,7 +129,23 @@ pub async fn stream(
     system_prompt: String,
     web_search: bool,
     cancelled: Arc<AtomicBool>,
+    on_delta: impl FnMut(String) -> Result<()>,
+) -> Result<(String, Vec<Source>, i64, i64, i64, Vec<Value>, String)> {
+    stream_with_progress(base_url,api_key,model,thinking,options,history,system_prompt,web_search,cancelled,on_delta, |_, _| {}).await
+}
+
+pub async fn stream_with_progress(
+    base_url: String,
+    api_key: String,
+    model: String,
+    thinking: String,
+    options: Value,
+    history: Vec<Message>,
+    system_prompt: String,
+    web_search: bool,
+    cancelled: Arc<AtomicBool>,
     mut on_delta: impl FnMut(String) -> Result<()>,
+    mut on_progress: impl FnMut(&str, String),
 ) -> Result<(String, Vec<Source>, i64, i64, i64, Vec<Value>, String)> {
     let messages = prepare_messages(&history);
     let budget = thinking_budget(&thinking);
@@ -219,13 +235,13 @@ pub async fn stream(
             if event["type"] == "error" {
                 return Err(anyhow!("API 流错误：{}", event["error"]));
             }
-            collect_search_events(&mut search_events, &event);
-            if event["type"] == "message_start" {
+            collect_search_events(&mut search_events, &event); if event["content_block"]["type"] == "server_tool_use" { on_progress("searching", String::new()); }
+            if event["type"] == "message_start" { on_progress("usage", json!({"input":if event["message"]["usage"]["input_tokens"].is_i64(){"provider"}else{"unavailable"}}).to_string());
                 input_tokens = event["message"]["usage"]["input_tokens"]
                     .as_i64()
                     .unwrap_or(0);
             }
-            if event["type"] == "message_delta" {
+            if event["type"] == "message_delta" { on_progress("usage", json!({"output":if event["usage"]["output_tokens"].is_i64(){"provider"}else{"unavailable"}}).to_string());
                 output_tokens = event["usage"]["output_tokens"]
                     .as_i64()
                     .unwrap_or(output_tokens);
@@ -246,7 +262,7 @@ pub async fn stream(
                     }
                 }
                 if let Some(thought) = event["delta"]["thinking"].as_str() {
-                    reasoning_content.push_str(thought);
+                    reasoning_content.push_str(thought); on_progress("thinking", thought.to_string());
                     thinking_tokens += (thought.chars().count() as i64 + 3) / 4;
                 }
             } else if event["type"] == "content_block_start" {

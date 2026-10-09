@@ -38,7 +38,24 @@ pub async fn stream(
     system: String,
     search: bool,
     cancelled: Arc<AtomicBool>,
+    on_delta: impl FnMut(String) -> Result<()>,
+) -> Result<Response> {
+    stream_with_progress(provider,base,key,model,thinking,options,history,system,search,cancelled,on_delta, |_, _| {}).await
+}
+
+pub async fn stream_with_progress(
+    provider: String,
+    base: String,
+    key: String,
+    model: String,
+    thinking: String,
+    options: Value,
+    history: Vec<Message>,
+    system: String,
+    search: bool,
+    cancelled: Arc<AtomicBool>,
     mut on_delta: impl FnMut(String) -> Result<()>,
+    mut on_progress: impl FnMut(&str, String),
 ) -> Result<Response> {
     let adapter = ProviderAdapter::new(&provider)?;
     let mut messages = prepare_messages(&history, &provider, &system);
@@ -121,13 +138,13 @@ pub async fn stream(
                 }
                 if let Some(text) = delta["reasoning_content"].as_str() {
                     round_reasoning.push_str(text);
-                    reasoning.push_str(text);
+                    reasoning.push_str(text); on_progress("thinking", text.into());
                     round_thinking += (text.chars().count() as i64 + 3) / 4;
                 }
                 crate::claude::collect_sources(&mut sources, &event);
                 crate::claude::collect_sources(&mut sources, delta);
                 crate::claude::collect_search_events(&mut events, &event);
-                if let Some(calls) = delta["tool_calls"].as_array() {
+                if let Some(calls) = delta["tool_calls"].as_array() { if !calls.is_empty() { on_progress("searching", String::new()); }
                     for call in calls {
                         let index = call["index"].as_u64().unwrap_or(0) as usize;
                         let entry=tools.entry(index).or_insert_with(||json!({"id":"","type":"function","function":{"name":"","arguments":""}}));
@@ -154,7 +171,7 @@ pub async fn stream(
                         }
                     }
                 }
-                if let Some(usage) = event.get("usage") {
+                if let Some(usage) = event.get("usage").filter(|value| value.is_object()) { on_progress("usage", json!({"input":if usage["prompt_tokens"].is_i64(){"provider"}else{"unavailable"},"output":if usage["completion_tokens"].is_i64(){"provider"}else{"unavailable"},"thinking":if usage["completion_tokens_details"]["reasoning_tokens"].is_i64(){"provider"}else if !reasoning.is_empty(){"estimated"}else{"unavailable"}}).to_string());
                     round_input = usage["prompt_tokens"].as_i64().unwrap_or(round_input);
                     round_output = usage["completion_tokens"].as_i64().unwrap_or(round_output);
                     round_thinking = usage["completion_tokens_details"]["reasoning_tokens"]
@@ -282,8 +299,8 @@ mod tests {
             json!({"choices":[],"usage":{"prompt_tokens":12,"completion_tokens":8,"completion_tokens_details":{"reasoning_tokens":3}}}),
         ) + "data: [DONE]\r\n\r\n";
         let (base, server) = crate::test_http::serve(vec![(200, "text/event-stream", data)]);
-        let mut visible = String::new();
-        let result = stream(
+        let mut visible = String::new(); let mut progress=Vec::new();
+        let result = stream_with_progress(
             "deepseek".into(),
             base,
             "mock".into(),
@@ -298,13 +315,14 @@ mod tests {
                 visible.push_str(&text);
                 Ok(())
             },
+            |phase,delta| progress.push((phase.to_string(),delta)),
         )
         .await
         .unwrap();
         assert_eq!(result.0, "中文回答");
         assert_eq!(visible, result.0);
         assert_eq!((result.2, result.3, result.4), (12, 8, 3));
-        assert_eq!(result.6, "思考");
+        assert_eq!(result.6, "思考"); assert_eq!(progress.iter().filter(|(phase,_)|phase=="thinking").count(),1); assert!(progress.iter().any(|(phase,delta)|phase=="usage" && delta.contains("provider")));
         let requests = server.join().unwrap();
         assert_eq!(requests[0]["thinking"]["type"], "enabled");
         assert_eq!(requests[0]["model"], "custom-model");

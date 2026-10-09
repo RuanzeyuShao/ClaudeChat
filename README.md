@@ -11,19 +11,56 @@
 
 ## 下载并使用
 
-**Windows 用户：[下载 ClaudeChat v0.1.3 安装程序（.exe）](https://github.com/RuanzeyuShao/ClaudeChat/releases/download/v0.1.3/ClaudeChat_0.1.3_x64-setup.exe)**
+当前版本为 **v0.1.4 UI/UX Experience Update**，源码和 Windows x64 安装包位于 [v0.1.4 分支](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4)。
 
-上方是正式发布的 Windows x64 安装包，包含 API 配置管理优化。安装包和 SHA-256 校验文件均可在 [v0.1.3 Release](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.3) 的 Assets 中下载；仓库备份位于 `v0.1.3` 分支的 `installers/v0.1.3/`。也可从源码运行：安装 Node.js 和 Rust 后执行 `npm install`、`npm run tauri:dev`。
+**[下载 ClaudeChat v0.1.4 Windows x64 安装包](https://github.com/RuanzeyuShao/ClaudeChat/raw/refs/heads/v0.1.4/installers/v0.1.4/ClaudeChat_0.1.4_x64-setup.exe)** · [SHA-256 校验](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.4/installers/v0.1.4/SHA256SUMS.txt) · [修改与测试报告](docs/v0.1.4-test-report.md)
+
+安装包及构建信息保存在 `installers/v0.1.4/`。本次通过版本分支交付，没有创建新的 GitHub Release；已有标签和 Release 保持不变。从旧客户端更新前，请先退出 ClaudeChat。
+
+已发布的旧版本仍可从 [v0.1.3 Release](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.3) 下载。也可从源码运行：安装 Node.js 和 Rust 后执行 `npm ci`、`npm run tauri:dev`。
 
 下载后双击安装，启动 ClaudeChat。首次使用时打开「设置」，填写 API Key；使用第三方兼容服务时，再填写该服务提供的 Base URL 和模型 ID。点击「测试连接」，成功后即可开始对话。无需安装 Node.js、Rust，也无需自行编译。
 
-如果直达链接不可用，可前往 [v0.1.3 Release 页面](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.3) 下载，也可使用 [分支内的安装包备份](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.3/installers/v0.1.3)。旧版安装包仍可在 [v0.1.2 Release 页面](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.2) 获取。
+如果直达链接不可用，可打开 [v0.1.4 安装包目录](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4/installers/v0.1.4)，点击 EXE 后选择下载。旧版安装包仍可从 [v0.1.3 Release](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.3) 和 [v0.1.2 Release](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.2) 获取。
 
 > 使用本客户端需要可用的 Provider API Key（Anthropic、OpenAI、DeepSeek、Kimi/Moonshot、GLM/Zhipu 或兼容服务）。第三方服务支持的模型、搜索能力及费用由相应服务决定。
 
 ## 当前功能
 
-### v0.1.3（当前源码）
+### v0.1.4（当前源码）
+
+输入框底部的 Provider／模型按钮现在就地向上打开配置面板，可直接选择服务、Profile 和模型，不需要展开左栏。[底部模型选择说明](docs/v0.1.4-composer-picker-report.md)。
+
+同版本交互修复：侧栏宽度明确绑定到实际元素，聊天服务折叠不再横向挤动界面；思考滑块 High 填满轨道；选择模型显示草稿状态。[三处交互修复记录](docs/v0.1.4-selector-fix-report.md)。
+
+选择列表或自定义模型后只收起模型选择列表，配置界面保持打开，可继续调整思考与搜索；统一点击“应用配置”后生效。[模型列表与配置面板说明](docs/v0.1.4-model-list-report.md)。原“当前 Chat 内置搜索”改名为“Provider API 内置搜索（需支持）”，通用偏好和服务面板按实际 API 路径禁用未接入的选项并解释原因；联网配置在发送前检查，并随当前会话保存。[搜索区别说明](docs/v0.1.4-search-confirm-report.md)。
+
+“设置 → API 配置”使用同样的模型选择交互：选中列表模型或确认自定义 ID 后只收起模型列表，可继续修改名称、思考、价格与附加参数；点击“保存配置”或“保存并启用”后生效。[API 配置模型选择说明](docs/v0.1.4-api-model-list-report.md)。
+
+输入框底部模型、思考、联网控件采用更大字号和独立描边，窄窗口自动换行。阅读历史时停止自动跟随，新内容以输入框上方的“有新回答 ↓”提示；点击平滑返回，消息末尾不会被输入区遮挡。[Composer 与滚动说明](docs/v0.1.4-composer-scroll-report.md)。
+
+同版本模型切换修复：同一会话自由选择 Provider、Profile 和模型；生成中可查看，停止或完成后应用。下一轮使用新配置，重启恢复完整连接，历史回答保留来源和 Usage。[模型切换验证记录](docs/v0.1.4-model-switch-report.md)。
+
+2026-10-09 同版本修复：用量页面按可用宽度换行、支持关闭及 Esc 返回并保留筛选；来源合并重复 URL 并保留原编号。版本仍为 0.1.4。[本轮改动与验证](docs/v0.1.4-ui-fix-report.md)。
+
+主界面、消息正文、输入框、侧栏、Provider 选择与文件预览采用统一设计语言。服务入口打开配置面板，选择模型仅收起列表，模型、思考和搜索由“应用配置”统一保存，生成中等待停止或完成。草稿按会话保留，输入法确认不会误发送，流式输出不会打断向上阅读。对话树提供连接线、路径高亮、折叠与定位；Diff 默认保存新副本，覆盖原文件需再次确认。
+
+快捷键：`Ctrl+N` 新建、`Ctrl+K` 搜索、`Ctrl+,` 设置、`Ctrl+L` 输入框、`Esc` 关闭。通用偏好可选择 Enter 或 Ctrl+Enter 发送。主题支持浅色、深色和跟随系统，动画尊重系统减少动态效果设置。
+
+新草稿、发送偏好和 Usage 来源使用受限 SQLite 扩展，不改旧表与 v3 迁移；密钥继续保存在 Windows Credential Manager。详细变化见 [CHANGELOG](CHANGELOG.md)、[设计说明](docs/v0.1.4-design.md) 与 [测试报告](docs/v0.1.4-test-report.md)。
+
+```powershell
+npm ci
+npm run test
+npm run test:ui
+npm run build
+cargo test --manifest-path src-tauri/Cargo.toml --target-dir src-tauri/target-v014
+$env:CARGO_TARGET_DIR = 'D:\claude-chat\src-tauri\target-v014'
+npm run tauri:build -- --bundles nsis
+npm run release:collect
+```
+
+### v0.1.3（历史更新）
 
 API 管理采用独立的「我的 API」列表与编辑区，按照「服务 → 连接 → 默认模型」填写，可读取服务模型列表或手动输入。名称可自动生成；密钥和模型未填全时可以先保存草稿，补齐后再启用。「保存配置」不会切换其他连接，「保存并启用」会用于当前聊天。编辑正在使用的配置会同步当前连接。高级参数和单价默认收起，Prompt 预设及通用偏好分为单独页签。
 

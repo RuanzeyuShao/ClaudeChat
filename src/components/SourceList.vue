@@ -1,0 +1,18 @@
+<script setup lang="ts">
+import { computed, ref, useId } from 'vue'
+import { ChevronDown, ChevronUp, ExternalLink } from '@lucide/vue'
+import type { Source } from '../types'
+import { groupSources } from '../utils/sources'
+const props=defineProps<{sources:Source[]}>()
+const expanded=ref(false),id=useId()
+const groups=computed(()=>groupSources(props.sources))
+const visible=computed(()=>expanded.value?groups.value:groups.value.slice(0,3))
+const numbers=(values:number[])=>values.map(n=>`[${n}]`).join(' ')
+const domain=(href?:string)=>href?new URL(href).hostname:'无有效链接'
+</script>
+<template>
+ <section class="message-sources" aria-label="搜索来源"><div class="source-list-heading">来源 <span>{{ groups.length }} 个{{ groups.length<sources.length?' · 已合并重复链接':'' }}</span></div><div :id="id" class="source-grid"><article v-for="item in visible" :key="item.key" class="source-entry"><a class="source-link" :href="item.href" :aria-disabled="!item.href || undefined" target="_blank" rel="noopener noreferrer" :title="`${item.source.title || domain(item.href)}\n原引用编号 ${numbers(item.numbers)}${item.citations.length?' · '+item.citations.join(' / '):''}\n${item.source.url}`"><span class="source-number">{{ numbers(item.numbers) }}</span><span class="source-copy"><strong>{{ item.source.title || domain(item.href) }}</strong><small>{{ domain(item.href) }}</small><small v-if="item.citations.length" class="source-citations">{{ item.citations.join(' / ') }}</small></span><ExternalLink :size="13"/></a><details v-if="item.source.snippet" class="source-snippet"><summary>查看摘要</summary><p>{{ item.source.snippet }}</p></details></article></div><button v-if="groups.length>3" class="source-expand" :aria-expanded="expanded" :aria-controls="id" @click="expanded=!expanded"><component :is="expanded?ChevronUp:ChevronDown" :size="14"/>{{ expanded?'收起来源':`展开全部来源（另 ${groups.length-3} 个）` }}</button></section>
+</template>
+<style scoped>
+.message-sources{margin-top:18px}.source-list-heading{display:flex;gap:8px;align-items:center;color:var(--text);font-size:11px;font-weight:500;margin-bottom:8px}.source-list-heading span{font-size:10px;color:var(--muted);font-weight:400}.source-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:8px}.source-entry{min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-sm)}.source-entry:hover{border-color:var(--line-strong);box-shadow:var(--shadow-sm)}.source-link{display:flex;align-items:flex-start;gap:8px;padding:11px;text-decoration:none;min-width:0;color:var(--text);border-radius:var(--radius-sm)}.source-link:hover strong{color:var(--accent)}.source-link:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.source-link[aria-disabled=true]{cursor:default;color:var(--muted)}.source-number{flex:none;max-width:35%;background:var(--accent-soft);color:var(--accent);border-radius:5px;padding:3px 5px;font-size:10px;overflow-wrap:anywhere}.source-copy{min-width:0;flex:1}.source-copy strong{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px;font-weight:500}.source-copy small{display:block;font-size:10px;color:var(--muted);margin-top:4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.source-link>svg{flex:none;color:var(--muted);margin-top:3px}.source-snippet{padding:0 11px 10px;color:var(--muted);font-size:10px}.source-snippet p{font-size:11px;line-height:1.7;margin:8px 0 0;overflow-wrap:anywhere;max-height:160px;overflow:auto}.source-expand{display:inline-flex;align-items:center;gap:5px;padding:7px 0;margin-top:4px;border:0;background:transparent;color:var(--muted);font-size:11px}.source-expand:hover{color:var(--accent)}
+</style>

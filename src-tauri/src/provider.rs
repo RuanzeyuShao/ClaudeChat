@@ -173,9 +173,22 @@ pub async fn stream(
     cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
     on_delta: impl FnMut(String) -> Result<()>,
 ) -> Result<crate::openai::Response> {
+    stream_with_progress(settings,key,history,system,search,cancelled,on_delta, |_, _| {}).await
+}
+
+pub async fn stream_with_progress(
+    settings: &crate::commands::Settings,
+    key: String,
+    history: Vec<crate::database::Message>,
+    system: String,
+    search: bool,
+    cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    on_delta: impl FnMut(String) -> Result<()>,
+    on_progress: impl FnMut(&str, String),
+) -> Result<crate::openai::Response> {
     match ProviderAdapter::new(&settings.provider)? {
         ProviderAdapter::Anthropic => {
-            crate::claude::stream(
+            crate::claude::stream_with_progress(
                 settings.base_url.clone(),
                 key,
                 settings.model.clone(),
@@ -186,11 +199,12 @@ pub async fn stream(
                 search,
                 cancelled,
                 on_delta,
+                on_progress,
             )
             .await
         }
         _ => {
-            crate::openai::stream(
+            crate::openai::stream_with_progress(
                 settings.provider.clone(),
                 settings.base_url.clone(),
                 key,
@@ -202,6 +216,7 @@ pub async fn stream(
                 search,
                 cancelled,
                 on_delta,
+                on_progress,
             )
             .await
         }

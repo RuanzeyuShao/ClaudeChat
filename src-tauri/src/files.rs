@@ -172,3 +172,24 @@ fn wrap(text:&str,n:usize)->Vec<String>{if text.is_empty(){return vec![];}let mu
     export_pdf(&c,&[m],&path).unwrap(); assert!(std::fs::metadata(&path).unwrap().len()>1000); std::fs::remove_file(path).unwrap();
   }
 }
+/// A copy must never silently replace an existing file, including the original.
+pub fn save_code_copy(path: &std::path::Path, content: &str) -> anyhow::Result<()> {
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(path)
+        .map_err(|error| if error.kind() == std::io::ErrorKind::AlreadyExists {
+            anyhow::anyhow!("目标文件已存在，请选择新文件名；覆盖原文件需使用单独的覆盖操作")
+        } else { error.into() })?;
+    file.write_all(content.as_bytes())?;
+    Ok(())
+}
+#[cfg(test)]
+mod copy_tests {
+    #[test]
+    fn saving_a_copy_never_overwrites_a_file() {
+        let path=std::env::temp_dir().join(format!("claudechat-copy-{}.rs",uuid::Uuid::new_v4()));
+        super::save_code_copy(&path,"original").unwrap();
+        assert!(super::save_code_copy(&path,"replacement").is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(),"original");
+        std::fs::remove_file(path).unwrap();
+    }
+}
