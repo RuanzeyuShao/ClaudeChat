@@ -11,19 +11,30 @@
 
 ## 下载并使用
 
-**Windows 用户：[下载 ClaudeChat v0.1.3 安装程序（.exe）](https://github.com/RuanzeyuShao/ClaudeChat/releases/download/v0.1.3/ClaudeChat_0.1.3_x64-setup.exe)**
+**Windows 用户：[下载 ClaudeChat v0.1.4 安装程序（.exe）](https://github.com/RuanzeyuShao/ClaudeChat/raw/refs/heads/v0.1.4/installers/v0.1.4/ClaudeChat_0.1.4_x64-setup.exe)**
 
-上方是正式发布的 Windows x64 安装包，包含 API 配置管理优化。安装包和 SHA-256 校验文件均可在 [v0.1.3 Release](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.3) 的 Assets 中下载；仓库备份位于 `v0.1.3` 分支的 `installers/v0.1.3/`。也可从源码运行：安装 Node.js 和 Rust 后执行 `npm install`、`npm run tauri:dev`。
+v0.1.4 的源码、Windows x64 安装包与校验文件已提交到 [v0.1.4 分支](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4)，安装包目录为 [installers/v0.1.4](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4/installers/v0.1.4)。[SHA-256 校验文件](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.4/installers/v0.1.4/SHA256SUMS.txt)和[修改／测试报告](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.4/docs/v0.1.4-test-report.md)一并提供。此次采用版本分支交付，右侧 Releases 仍显示已有 v0.1.3 Release；v0.1.4 请使用上面的下载入口。
+
+从源码运行 v0.1.4 时，先切换到 `v0.1.4` 分支，再执行 `npm ci`、`npm run tauri:dev`。更新安装前请先退出正在运行的 ClaudeChat。
 
 下载后双击安装，启动 ClaudeChat。首次使用时打开「设置」，填写 API Key；使用第三方兼容服务时，再填写该服务提供的 Base URL 和模型 ID。点击「测试连接」，成功后即可开始对话。无需安装 Node.js、Rust，也无需自行编译。
 
-如果直达链接不可用，可前往 [v0.1.3 Release 页面](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.3) 下载，也可使用 [分支内的安装包备份](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.3/installers/v0.1.3)。旧版安装包仍可在 [v0.1.2 Release 页面](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.2) 获取。
+如果直达链接不可用，可打开 [v0.1.4 安装包目录](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4/installers/v0.1.4)，点击 EXE 后选择下载。旧版安装包仍可从 [v0.1.3 Release](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.3) 和 [v0.1.2 Release](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.2) 获取。
 
 > 使用本客户端需要可用的 Provider API Key（Anthropic、OpenAI、DeepSeek、Kimi/Moonshot、GLM/Zhipu 或兼容服务）。第三方服务支持的模型、搜索能力及费用由相应服务决定。
 
 ## 当前功能
 
-### v0.1.3（当前源码）
+### v0.1.4（版本分支）
+
+- 同一会话切换 Provider、API Profile 和模型；保留历史、附件、对话树及原始 Usage，下一轮使用新配置。
+- 选择模型仅收起模型列表，配置面板继续编辑，模型／思考／搜索统一应用；设置中的 API 配置使用一致交互。
+- 用量 Dashboard 响应式布局、关闭及 Esc 返回，保留统计筛选和聊天阅读位置。
+- 来源去重与折叠、Composer 控件字号和分隔优化；向上阅读暂停跟随，新回答在输入框上方提示，点击平滑返回。
+
+查看 [v0.1.4 源码与完整说明](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4)。
+
+### v0.1.3（main 分支源码）
 
 API 管理采用独立的「我的 API」列表与编辑区，按照「服务 → 连接 → 默认模型」填写，可读取服务模型列表或手动输入。名称可自动生成；密钥和模型未填全时可以先保存草稿，补齐后再启用。「保存配置」不会切换其他连接，「保存并启用」会用于当前聊天。编辑正在使用的配置会同步当前连接。高级参数和单价默认收起，Prompt 预设及通用偏好分为单独页签。
 
