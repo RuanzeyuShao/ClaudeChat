@@ -9,5 +9,7 @@
   "buildBranch": "codex/v0.1.4",
   "distributionBranch": "v0.1.4",
   "sourceCommit": "5c204ac2adb123d7901bde9b2edc9873c1c0003a",
-  "githubReleaseCreated": false
+  "githubReleaseCreated": true,
+  "releaseUrl": "https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.4",
+  "releaseTargetCommit": "92170941c1ba354b858e11f64f4e9bb408fe035e"
 }

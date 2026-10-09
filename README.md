@@ -13,9 +13,9 @@
 
 当前版本为 **v0.1.4 UI/UX Experience Update**，源码和 Windows x64 安装包位于 [v0.1.4 分支](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4)。
 
-**[下载 ClaudeChat v0.1.4 Windows x64 安装包](https://github.com/RuanzeyuShao/ClaudeChat/raw/refs/heads/v0.1.4/installers/v0.1.4/ClaudeChat_0.1.4_x64-setup.exe)** · [SHA-256 校验](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.4/installers/v0.1.4/SHA256SUMS.txt) · [修改与测试报告](docs/v0.1.4-test-report.md)
+**[下载 ClaudeChat v0.1.4 Windows x64 安装包](https://github.com/RuanzeyuShao/ClaudeChat/releases/download/v0.1.4/ClaudeChat_0.1.4_x64-setup.exe)** · [v0.1.4 Release / Assets](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.4) · [SHA-256 校验](https://github.com/RuanzeyuShao/ClaudeChat/releases/download/v0.1.4/SHA256SUMS.txt) · [修改与测试报告](docs/v0.1.4-test-report.md)
 
-安装包及构建信息保存在 `installers/v0.1.4/`。本次通过版本分支交付，没有创建新的 GitHub Release；已有标签和 Release 保持不变。从旧客户端更新前，请先退出 ClaudeChat。
+v0.1.4 已正式发布为 GitHub 最新 Release，Assets 中提供安装包、校验文件和构建清单；版本分支的 `installers/v0.1.4/` 保留备份。应用版本仍为 0.1.4，既有版本的标签和附件保留。从旧客户端更新前，请先退出 ClaudeChat。
 
 已发布的旧版本仍可从 [v0.1.3 Release](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.3) 下载。也可从源码运行：安装 Node.js 和 Rust 后执行 `npm ci`、`npm run tauri:dev`。
 
