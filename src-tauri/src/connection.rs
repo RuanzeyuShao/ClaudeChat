@@ -45,6 +45,9 @@ pub fn resolve(db:&Database,mut settings:Settings)->Result<Settings> {
     Ok(settings)
 }
 pub fn persist(db:&Database,settings:&Settings,id:Option<&str>)->Result<()> {
+    persist_with_prompt(db,settings,id,None)
+}
+pub fn persist_with_prompt(db:&Database,settings:&Settings,id:Option<&str>,prompt:Option<&str>)->Result<()> {
     let recent=settings.recent_turns.to_string();
     let options=settings.request_options.to_string();
     let mut values=vec![
@@ -59,7 +62,7 @@ pub fn persist(db:&Database,settings:&Settings,id:Option<&str>)->Result<()> {
     let connection_value=selection(settings).to_string();
     let last=id.map(|id|json!(id).to_string());
     if let Some(key)=connection_key.as_ref(){values.push((key.as_str(),connection_value.as_str()));values.push(("v4:lastConversation",last.as_deref().unwrap()))}
-    db.save_settings_atomic(&values,id)
+    db.save_settings_and_prompt_atomic(&values,id,prompt)
 }
 pub fn save(db:&Database,settings:Settings,id:Option<&str>)->Result<Settings> {
     let mut settings=resolve(db,settings)?;

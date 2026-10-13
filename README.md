@@ -3,8 +3,8 @@
   <h1>ClaudeChat</h1>
   <p>自由配置模型、本地保存对话的 Windows 桌面聊天客户端</p>
   <p>
-    <a href="https://github.com/RuanzeyuShao/ClaudeChat/releases/download/v0.1.4/ClaudeChat_0.1.4_x64-setup.exe"><strong>下载 Windows x64 · v0.1.4</strong></a>
-    · <a href="https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.4">Release / Assets</a>
+    <a href="https://github.com/RuanzeyuShao/ClaudeChat/raw/refs/heads/v0.1.4/installers/v0.1.4/ClaudeChat_0.1.4_x64-setup.exe"><strong>下载 Windows x64 · v0.1.4</strong></a>
+    · <a href="https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.4">原始 Release / Assets</a>
     · <a href="https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4">v0.1.4 源码</a>
   </p>
 </div>
@@ -15,7 +15,7 @@ ClaudeChat 面向日常问答、写作、文档阅读和代码讨论。支持 Cl
 
 点击上方下载入口，运行 `ClaudeChat_0.1.4_x64-setup.exe` 即可安装。使用安装包无需安装 Node.js 或 Rust；更新前请先退出正在运行的 ClaudeChat。
 
-[Release 页面](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.4)的 **Assets** 同时提供 [SHA-256 校验文件](https://github.com/RuanzeyuShao/ClaudeChat/releases/download/v0.1.4/SHA256SUMS.txt)和构建清单。无法直接下载时，可使用 [版本分支中的安装包备份](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4/installers/v0.1.4)。
+当前下载入口提供 **2026-10-13 修复版**，版本仍为 0.1.4。安装包、[SHA-256 校验文件](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.4/installers/v0.1.4/SHA256SUMS.txt)和构建清单位于 [v0.1.4 分支的安装包目录](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4/installers/v0.1.4)。本次修复涵盖消息失败恢复、附件筛选、预设保存、引用、搜索状态与取消、跨日统计；[修复与验证报告](docs/v0.1.4-reliability-fix-report.md)。
 
 你需要自己的 Provider API Key；模型调用费用由对应服务商收取，支持的模型和能力取决于所选 API 或中转站。
 

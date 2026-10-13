@@ -22,11 +22,11 @@ pub(crate) fn add_source(sources: &mut Vec<Source>, value: &Value) {
     {
         return;
     }
-    if sources.iter().any(|source| source.url == url) {
-        return;
-    }
+    let citation=value["refer"].as_str().unwrap_or("");
+    // Keep the provider's original entries and order, including repeated URLs.
+    // Vue groups cards without renumbering the underlying references.
     sources.push(Source {
-        citation: value["refer"].as_str().unwrap_or("").to_string(),
+        citation: citation.to_string(),
         title: value["title"].as_str().unwrap_or(url).to_string(),
         url: url.to_string(),
         snippet: value["snippet"]
@@ -254,7 +254,8 @@ pub async fn stream_with_progress(
                 collect_sources(&mut sources, &event["delta"]);
                 if event["delta"]["type"] == "citations_delta" {
                     if let Some(url) = event["delta"]["citation"]["url"].as_str() {
-                        if let Some(position) = sources.iter().position(|s| s.url == url) {
+                        let citation=event["delta"]["citation"]["refer"].as_str().unwrap_or("");
+                        if let Some(position) = sources.iter().rposition(|s| s.url == url && s.citation==citation) {
                             let marker = format!("[{}]", position + 1);
                             answer.push_str(&marker);
                             on_delta(marker)?;
@@ -311,6 +312,12 @@ fn prepare_messages(history: &[Message]) -> Vec<Value> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn duplicate_urls_keep_distinct_citations_and_stable_order(){
+        let mut sources=vec![];
+        for source in [serde_json::json!({"url":"https://example.com/a","title":"A","refer":"ref-1"}),serde_json::json!({"url":"https://example.com/b","title":"B","refer":"ref-2"}),serde_json::json!({"url":"https://example.com/a","title":"A again","refer":"ref-3"}),serde_json::json!({"url":"https://example.com/a","title":"A repeat event","refer":"ref-3"})]{super::add_source(&mut sources,&source);}
+        assert_eq!(sources.len(),4);assert_eq!(sources[0].citation,"ref-1");assert_eq!(sources[2].citation,"ref-3");assert_eq!(sources[0].url,sources[2].url);assert_eq!(sources[3].citation,"ref-3");
+    }
     use super::*;
     use crate::database::Attachment;
     #[test]

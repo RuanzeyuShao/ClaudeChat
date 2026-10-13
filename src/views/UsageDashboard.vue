@@ -21,6 +21,10 @@ const model = ref('__all__'), profile = ref('__all__'), conversation = ref('__al
 const metric = ref<'tokens' | 'cost'>('tokens')
 const today = new Date()
 const localDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+const currentDay=ref(today)
+let dayTimer:ReturnType<typeof setInterval>|undefined
+function refreshDay(){const now=new Date();if(localDate(now)!==localDate(currentDay.value))currentDay.value=now}
+function onVisibility(){if(document.visibilityState==='visible')refreshDay()}
 const customFrom = ref(localDate(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6)))
 const customTo = ref(localDate(today))
 const page = ref(1), pageSize = 15
@@ -36,8 +40,9 @@ const plotWidth=computed(()=>plotRight.value-plotLeft)
 let chartObserver:ResizeObserver|undefined
 function measureChart(){const width=chart.value?.getBoundingClientRect().width;if(width)chartWidth.value=Math.max(240,width)}
 watch(chart,node=>{chartObserver?.disconnect();if(node){measureChart();chartObserver=new ResizeObserver(measureChart);chartObserver.observe(node)}},{flush:'post'})
-watch(()=>props.active,async active=>{if(active){await nextTick();measureChart()}else{selected.value=null;hoverIndex.value=null;dragStart.value=null;dragEnd.value=null}})
-onUnmounted(()=>chartObserver?.disconnect())
+watch(()=>props.active,async active=>{if(active){refreshDay();await nextTick();measureChart()}else{selected.value=null;hoverIndex.value=null;dragStart.value=null;dragEnd.value=null}})
+watch(()=>chat.usage.length,refreshDay)
+onUnmounted(()=>{chartObserver?.disconnect();clearInterval(dayTimer);window.removeEventListener('focus',refreshDay);document.removeEventListener('visibilitychange',onVisibility)})
 const number = (value: number) => new Intl.NumberFormat('zh-CN').format(value)
 const money = (value: number) => `$${value.toFixed(value < 0.01 && value > 0 ? 6 : 4)}`
 const dateTime = (value: string) => new Date(value).toLocaleString('zh-CN', { hour12: false })
@@ -45,7 +50,7 @@ const profileName = (row: Usage) => row.profileName || chat.profiles.find(p => p
 const conversationName = (id: string) => chat.conversations.find(c => c.id === id)?.title || `已删除会话 · ${id.slice(0, 8)}`
 
 const period = computed(() => {
-  const now = new Date(), day = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const now = currentDay.value, day = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   if (preset.value === 'today') return { start: day, end: new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1) }
   if (preset.value === '7d') return { start: new Date(day.getFullYear(), day.getMonth(), day.getDate() - 6), end: new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1) }
   if (preset.value === '30d') return { start: new Date(day.getFullYear(), day.getMonth(), day.getDate() - 29), end: new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1) }
@@ -124,7 +129,7 @@ const selectBar = (kind: 'model' | 'profile', id: string) => { if (kind === 'mod
 const pages = computed(() => Math.max(1, Math.ceil(filtered.value.length / pageSize)))
 watch(pages,count=>{page.value=Math.min(page.value,count)})
 const rows = computed(() => filtered.value.slice((page.value - 1) * pageSize, page.value * pageSize))
-onMounted(async () => { try { await chat.refreshUsage() } catch (error) { loadError.value = friendlyError(error);ui.failure(error) } })
+onMounted(async () => { refreshDay();dayTimer=setInterval(refreshDay,30000);window.addEventListener('focus',refreshDay);document.addEventListener('visibilitychange',onVisibility);try { await chat.refreshUsage() } catch (error) { loadError.value = friendlyError(error);ui.failure(error) } })
 </script>
 
 <template>

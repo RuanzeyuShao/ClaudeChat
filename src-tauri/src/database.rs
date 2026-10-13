@@ -393,6 +393,10 @@ impl Database {
         self.conn.execute("UPDATE message_nodes SET refs=?,search_trace=? WHERE message_id=(SELECT active_leaf FROM conversation_tree WHERE conversation_id=?)",params![serde_json::to_string(refs)?,trace.map(serde_json::to_string).transpose()?,id])?;
         Ok(())
     }
+    pub fn set_leaf_search_trace(&self,id:&str,trace:&serde_json::Value)->Result<()> {
+        self.conn.execute("UPDATE message_nodes SET search_trace=? WHERE message_id=(SELECT active_leaf FROM conversation_tree WHERE conversation_id=?)",params![trace.to_string(),id])?;
+        Ok(())
+    }
     pub fn bind_response(&self, id: &str, usage_id: &str, reasoning_content: &str) -> Result<()> {
         self.conn.execute("UPDATE message_nodes SET usage_id=?,reasoning_content=? WHERE message_id=(SELECT active_leaf FROM conversation_tree WHERE conversation_id=?)",params![usage_id,reasoning_content,id])?;
         Ok(())
@@ -525,6 +529,14 @@ impl Database {
         values: &[(&str, &str)],
         conversation_id: Option<&str>,
     ) -> Result<()> {
+        self.save_settings_and_prompt_atomic(values, conversation_id, None)
+    }
+    pub fn save_settings_and_prompt_atomic(
+        &self,
+        values: &[(&str, &str)],
+        conversation_id: Option<&str>,
+        prompt: Option<&str>,
+    ) -> Result<()> {
         let tx = self.conn.unchecked_transaction()?;
         for (key, value) in values {
             self.set_setting(key, value)?;
@@ -540,6 +552,7 @@ impl Database {
                 params![model, id],
             )?;
             anyhow::ensure!(count == 1, "会话不存在，API 配置未启用");
+            if let Some(prompt)=prompt { self.set_system_prompt(id,prompt)?; }
         }
         tx.commit()?;
         Ok(())

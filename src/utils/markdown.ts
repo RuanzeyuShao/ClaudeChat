@@ -50,4 +50,11 @@ const renderMath = (source: string, displayMode: boolean): string => {
 md.renderer.rules.math_inline = (tokens, index) => renderMath(tokens[index].content, false)
 md.renderer.rules.math_block = (tokens, index) => `${renderMath(tokens[index].content, true)}\n`
 
-export const renderMarkdown = (content: string) => md.render(content)
+const originalImage=md.renderer.rules.image!
+md.renderer.rules.image=(tokens,index,options,env,renderer)=>{
+ const token=tokens[index],source=token.attrGet('src') || ''
+ token.attrSet('referrerpolicy','no-referrer');token.attrSet('decoding','async')
+ if(env?.deferImages && /^https?:\/\//i.test(source)){token.attrSet('data-media-src',source);const attr=token.attrIndex('src');if(attr>=0)token.attrs!.splice(attr,1)}
+ return originalImage(tokens,index,options,env,renderer)
+}
+export const renderMarkdown = (content: string, deferImages=false) => md.render(content,{deferImages})

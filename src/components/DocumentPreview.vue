@@ -3,7 +3,7 @@ import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import type { Attachment } from '../types'
 import { api } from '../services/tauri'
 import { renderMarkdown } from '../utils/markdown'
-import { codeAction } from '../utils/codeActions'
+import RichContent from './RichContent.vue'
 import hljs from 'highlight.js'
 
 const props = defineProps<{ attachment: Attachment; proposed?: string }>()
@@ -79,12 +79,12 @@ onUnmounted(() => { requestVersion++; releasePdf() })
 const decodeURIComponentSafe = (value: string) => { try { return decodeURIComponent(value) } catch { return value } }
 const markdownPreview = computed(() => {
   if (!isMarkdown.value) return { html: '', missing: 0 }
-  const document = new DOMParser().parseFromString(renderMarkdown(props.attachment.text || ''), 'text/html')
+  const document = new DOMParser().parseFromString(renderMarkdown(props.attachment.text || '',true), 'text/html')
   let images: Record<string, string> = {}
   try { if (previewData.value) images = JSON.parse(previewData.value) as Record<string, string> } catch { /* Legacy attachment without bundled images. */ }
   let missing = 0
   document.querySelectorAll('img').forEach(image => {
-    const source = image.getAttribute('src') || ''
+    const source = image.getAttribute('data-media-src') || image.getAttribute('src') || ''
     if (/^(https?:|data:)/i.test(source)) return
     const resolved = images[source] || images[decodeURIComponentSafe(source)]
     if (resolved) image.setAttribute('src', resolved)
@@ -108,8 +108,8 @@ const subtitle = computed(() => isCode.value ? (props.proposed ? '代码变更 D
     <div v-else-if="isCode" class="code-lines hljs" :class="{wrap}"><div v-for="(line,index) in highlightedLines" :key="index" class="code-line" :class="{match:matches.includes(index)}" :data-line="index"><span>{{ index+1 }}</span><code v-html="line || ' '"/></div></div>
     <div v-else-if="isImage" class="image-preview"><img v-if="previewData" :src="`data:${attachment.mime};base64,${previewData}`" :alt="attachment.name"/><p v-else class="preview-notice">图片原文缺失，请重新上传。</p></div>
     <iframe v-else-if="isPdf && pdfUrl && !showExtractedText" class="pdf-preview-frame" :src="pdfUrl" :title="attachment.name"/>
-    <template v-else-if="isMarkdown"><p v-if="markdownPreview.missing" class="preview-notice">{{ markdownPreview.missing }} 张相对路径图片未找到，请重新上传原始文件。</p><div class="markdown" v-html="markdownPreview.html" @click="codeAction"/></template>
-    <div v-else-if="isDocx && previewData" class="docx-preview" v-html="previewData"/>
+    <template v-else-if="isMarkdown"><p v-if="markdownPreview.missing" class="preview-notice">{{ markdownPreview.missing }} 张相对路径图片未找到，请重新上传原始文件。</p><RichContent :html="markdownPreview.html"/></template>
+    <RichContent v-else-if="isDocx && previewData" :html="previewData"/>
     <template v-else><p v-if="isPdf && !pdfUrl" class="preview-notice">原始 PDF 未保存，重新上传后可查看原文。</p><pre>{{ attachment.text || '此文档没有可预览的文本。' }}</pre></template>
    </template>
   </div>

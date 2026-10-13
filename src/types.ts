@@ -9,7 +9,7 @@ export interface RequestIdentity { requestId?:string; provider: ProviderKind; mo
 export interface Preset { id: string; name: string; systemPrompt?: string; model?: string; thinking?: ThinkingLevel; searchMode?: Settings['searchMode']; profileId?: string }
 export interface Organization { pinned?: boolean; folder?: string; tags?: string[] }
 export interface Capabilities { checkedAt: string; model: string; baseUrl: string; provider: string; connection: string; streaming: string; thinking: string; vision: string; tool: string; search: string; contextLength: number | null; detail?: string }
-export interface Message { usageId?: string | null; reasoningContent?: string; parentId?: string | null; references?: MessageReference[]; searchTrace?: {query: string; provider: string; status: string; mode: string; sources: number; events?: unknown[]}; id: string; role: Role; content: string; createdAt: string; sources?: Source[]; attachments?: Attachment[]; pending?: boolean }
+export interface Message { usageId?: string | null; reasoningContent?: string; parentId?: string | null; references?: MessageReference[]; searchTrace?: {query: string; provider: string; status: string; mode: string; sources: number; events?: unknown[]; error?:string}; id: string; role: Role; content: string; createdAt: string; sources?: Source[]; attachments?: Attachment[]; pending?: boolean }
 export interface Conversation { id: string; title: string; model: string; createdAt: string; updatedAt: string; messages: Message[]; systemPrompt: string }
 export type ThemeMode = 'system' | 'light' | 'dark'
 export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'

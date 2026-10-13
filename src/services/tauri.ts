@@ -9,6 +9,8 @@ async function invoke<T>(command: string, args?: Record<string, unknown>): Promi
 
 export const api = {
   isTauri,
+  openLinkPreview:(url:string)=>invoke<void>('open_link_preview',{url}),
+  getRemoteImage:(url:string)=>invoke<{dataUrl:string;resolvedUrl:string}>('get_remote_image',{url}),
   getProviderModels: (settings: Settings) => invoke<ProviderModel[]>('get_provider_models', {settings}),
   getTree: (conversationId: string) => invoke<{messages: Message[]; leaf: string | null}>('get_tree', {conversationId}),
   selectBranch: (conversationId: string, leaf: string | null) => invoke<void>('select_branch', {conversationId, leaf}),
@@ -39,6 +41,7 @@ export const api = {
   saveCodeFile: (path: string, content: string, expected: string) => invoke<void>('save_code_file', { path, content, expected }),
   saveCodeCopy: (path: string, content: string) => invoke<void>('save_code_copy', { path, content }),
   saveSettings: (settings: Settings, conversationId?: string) => invoke<Settings>('save_settings', { settings, conversationId: conversationId || null }),
+  applyPresetSettings: (settings:Settings,conversationId:string,systemPrompt?:string)=>invoke<Settings>('apply_preset_settings',{settings,conversationId,systemPrompt:systemPrompt ?? null}),
   testConnection: (settings: Settings) => invoke<ConnectionResult>('test_connection', { settings }),
   sendMessage: (conversationId: string, content: string, settings: Settings, persistUser = true, attachments: Attachment[] = [], parentId: string | null = null, references: MessageReference[] = [],requestId?:string) => invoke<void>('send_message', { conversationId, content, settings, persistUser, attachments, parentId, references,requestId:requestId || null }),
   deleteLastAssistant: (conversationId: string) => invoke<void>('delete_last_assistant', { conversationId }),

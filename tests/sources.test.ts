@@ -14,6 +14,10 @@ it('merges canonical URLs without renumbering or mutating source data',()=>{
  const before=JSON.stringify(sources),groups=groupSources(sources)
  expect(groups).toHaveLength(5);expect(groups[0].numbers).toEqual([1,4]);expect(groups[0].citations).toEqual(['ref-A','ref-D']);expect(groups[0].source.snippet).toBe('保留摘要');expect(groups[3].numbers).toEqual([5]);expect(JSON.stringify(sources)).toBe(before)
 })
+it('groups repeated provider entries while preserving every numeric reference and distinct citation',()=>{
+ const groups=groupSources([{url:'https://example.com/a',title:'A',citation:'ref-1'},{url:'https://example.com/b',title:'B',citation:'ref-2'},{url:'https://example.com/a',title:'A again',citation:'ref-3'},{url:'https://example.com/a',title:'repeated entry',citation:'ref-3'}])
+ expect(groups).toHaveLength(2);expect(groups[0].numbers).toEqual([1,3,4]);expect(groups[0].citations).toEqual(['ref-1','ref-3']);expect(groups[1].numbers).toEqual([2])
+})
 it('keeps query strings and page anchors distinct and rejects unsafe links',()=>{
  const groups=groupSources([{title:'x',url:'https://example.com/a?q=1#one'},{title:'x',url:'https://example.com/a?q=2#one'},{title:'x',url:'https://example.com/a?q=1#two'},{title:'unsafe',url:'javascript:alert(1)'}])
  expect(groups).toHaveLength(4);expect(groups[3].href).toBeUndefined()

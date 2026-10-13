@@ -13,8 +13,10 @@ const listeners: (() => void)[] = []
 let frame = 0
 const deltas = new Map<string, string>()
 export type RequestStatus = 'idle' | 'connecting' | 'searching' | 'thinking' | 'generating' | 'completed' | 'stopped' | 'failed'
+interface ReplyBranch { parentId: string | null; rollbackLeaf: string | null; previousMessages?:Message[] }
+interface FailedReply {conversationId:string;content:string;attachments:Attachment[];persistUser:boolean;branch:ReplyBranch}
 export const useChatStore = defineStore('chat', {
-  state: () => ({ conversations: [] as Conversation[], activeId: '' as string, settings: { ...defaultSettings }, profiles: [] as ApiProfile[], usage: [] as Usage[], loading: false, error: '', initialized: false, profileBusy: false, activeRequestId:'',requestSettings:null as Settings | null,requestOrigins:{} as Record<string,RequestIdentity>,pendingOrigins:{} as Record<string,RequestIdentity>, usageOrigins: {} as Record<string,{input:string;output:string;thinking:string}>, status: 'idle' as RequestStatus, stopping: false, sendMode: 'enter' as 'enter' | 'ctrl-enter', drafts: {} as Record<string, { text: string; attachments: Attachment[] }>, providerPreferences: {} as Partial<Record<ChatProviderId, ProviderPreference>>, trees: {} as Record<string, Message[]>, presets: [] as Preset[], organization: {} as Record<string, Organization>, references: [] as MessageReference[] }),
+  state: () => ({ conversations: [] as Conversation[], activeId: '' as string, settings: { ...defaultSettings }, profiles: [] as ApiProfile[], usage: [] as Usage[], loading: false, error: '', initialized: false, profileBusy: false, activeRequestId:'',failedReply:null as FailedReply | null,requestSettings:null as Settings | null,requestOrigins:{} as Record<string,RequestIdentity>,pendingOrigins:{} as Record<string,RequestIdentity>, usageOrigins: {} as Record<string,{input:string;output:string;thinking:string}>, status: 'idle' as RequestStatus, stopping: false, sendMode: 'enter' as 'enter' | 'ctrl-enter', drafts: {} as Record<string, { text: string; attachments: Attachment[] }>, providerPreferences: {} as Partial<Record<ChatProviderId, ProviderPreference>>, trees: {} as Record<string, Message[]>, presets: [] as Preset[], organization: {} as Record<string, Organization>, references: [] as MessageReference[] }),
   getters: { active(state): Conversation | undefined { return state.conversations.find(x => x.id === state.activeId) } },
   actions: {
     async initialize() {
@@ -46,6 +48,7 @@ export const useChatStore = defineStore('chat', {
       listeners.push(await listen<{ conversationId: string; requestId:string; phase: 'connecting' | 'thinking' | 'searching'; delta?: string }>('chat-status', ({ payload }) => {
         if (!this.loading || this.stopping || this.activeId !== payload.conversationId || payload.requestId!==this.activeRequestId) return
         this.status = payload.phase
+        if(payload.phase==='searching'){const message=this.active?.messages.at(-1);if(message?.searchTrace?.status==='allowed')message.searchTrace.status='searching'}
         if (payload.delta) { const message = this.active?.messages.at(-1); if (message?.pending) message.reasoningContent = (message.reasoningContent || '') + payload.delta }
       }))
       listeners.push(await listen<{conversationId:string;requestId:string;trace:Message['searchTrace']}>('chat-search', ({payload})=>{const message=this.active?.messages.at(-1);if(message?.pending && !this.stopping && this.activeId===payload.conversationId && payload.requestId===this.activeRequestId){message.searchTrace=payload.trace; if(payload.trace?.status==='searching')this.status='searching'}}))
@@ -175,17 +178,27 @@ export const useChatStore = defineStore('chat', {
       const dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
       document.documentElement.dataset.theme = dark ? 'dark' : 'light'
     },
-    async send(content: string, attachments: Attachment[] = []) {
+    validateSend() {
+      if(api.isTauri && (!this.settings.baseUrl || !this.settings.model))throw new Error('请先在设置中添加并启用 API 配置')
+      if(api.isTauri && this.settings.profileId && !this.profiles.find(p=>p.id===this.settings.profileId)?.hasKey)throw new Error('当前 API 配置缺少密钥，请在设置中补充 API Key')
+      validateSearch(this.settings)
+    },
+    async send(content: string, attachments: Attachment[] = [], branch?: ReplyBranch) {
       if (!this.active || this.loading || this.profileBusy || (!content.trim() && !attachments.length)) return
-      if(api.isTauri && (!this.settings.baseUrl || !this.settings.model)){this.error='请先在设置中添加并启用 API 配置';return}
-      if(api.isTauri && this.settings.profileId && !this.profiles.find(p=>p.id===this.settings.profileId)?.hasKey){this.error='当前 API 配置缺少密钥，请在设置中补充 API Key';return}
-      try{validateSearch(this.settings)}catch(e){this.error=friendlyError(e);return}
-      this.error = ''; this.loading = true; this.status = 'connecting'; this.stopping = false
+      try{this.validateSend()}catch(e){this.error=friendlyError(e);return}
+      if(branch){
+        const branchParent=branch.parentId
+        const index=branchParent===null?-1:this.active.messages.findIndex(m=>m.id===branchParent)
+        if(branch.parentId!==null && index<0){this.error='原消息已不在当前对话路径中，请重新选择';return}
+        branch={...branch,previousMessages:[...this.active.messages]}
+        this.active.messages=this.active.messages.slice(0,index+1)
+      }
+      this.failedReply=null;this.error = ''; this.loading = true; this.status = 'connecting'; this.stopping = false
       const parentId = this.active.messages.at(-1)?.id || null
       const user: Message = { parentId, references: [...this.references], id: crypto.randomUUID(), role: 'user', content, attachments, createdAt: new Date().toISOString() }
       const assistant: Message = { parentId: user.id, id: crypto.randomUUID(), role: 'assistant', content: '', createdAt: new Date().toISOString(), pending: true }
       this.trees[this.activeId] = [...(this.trees[this.activeId] || this.active.messages), user]; this.active.messages.push(user, assistant); this.active.updatedAt = new Date().toISOString()
-      void this.requestReply(content, assistant, true, attachments)
+      void this.requestReply(content, assistant, true, attachments, branch)
       return true
     },
     async refreshTree(id: string) {
@@ -207,28 +220,67 @@ export const useChatStore = defineStore('chat', {
     },
     async regenerate(message?: Message) {
       if (!this.active || this.loading || this.profileBusy) return
+      try{this.validateSend()}catch(e){this.error=friendlyError(e);return}
       const last = message || this.active.messages.at(-1); if (!last || last.role !== 'assistant') return
       const parent = this.active.messages.find(m => m.id === last.parentId); if (!parent) return
+      const branch:ReplyBranch={parentId:parent.id,rollbackLeaf:this.active.messages.at(-1)?.id || null,previousMessages:[...this.active.messages]}
       const index = this.active.messages.findIndex(m => m.id === parent.id); this.active.messages = this.active.messages.slice(0, index + 1)
       const assistant: Message = {id: crypto.randomUUID(), parentId: parent.id, role: 'assistant', content: '', createdAt: new Date().toISOString(), pending: true}
-      this.active.messages.push(assistant); this.loading = true; this.error = ''; this.status='connecting'; this.stopping=false
-      await this.requestReply(parent.content, assistant, false)
+      this.failedReply=null;this.active.messages.push(assistant); this.loading = true; this.error = ''; this.status='connecting'; this.stopping=false
+      await this.requestReply(parent.content, assistant, false, [], branch)
     },
     async editResend(message: Message, edited?: string) {
       if (this.loading || this.profileBusy || !this.active) return
+      const conversationId=this.activeId
       const content = edited ?? await useUiStore().request({title:'编辑并创建新分支',value:message.content,multiline:true,confirm:'重发'}); if (content === null || !content.trim()) return
-      const index = this.active.messages.findIndex(m => m.id === message.id); this.active.messages = this.active.messages.slice(0, index)
-      this.references = [...(message.references || [])]; await this.send(content, message.attachments || [])
+      if(this.activeId!==conversationId || this.loading || this.profileBusy || !this.active)return
+      const index=this.active.messages.findIndex(m=>m.id===message.id);if(index<0)return
+      try{this.validateSend()}catch(e){this.error=friendlyError(e);return}
+      const oldReferences=this.references
+      this.references=[...(message.references || [])]
+      const accepted=await this.send(content,message.attachments || [],{parentId:this.active.messages[index-1]?.id || null,rollbackLeaf:this.active.messages.at(-1)?.id || null})
+      if(!accepted)this.references=oldReferences
+      return accepted
     },
-    async reSearch(message: Message) {const old=this.settings.searchMode;this.settings.searchMode='force';try{await this.regenerate(message)}finally{this.settings.searchMode=old}},
+    async reSearch(message: Message) {if(this.loading || this.profileBusy)return;const old=this.settings.searchMode;this.settings.searchMode='force';try{if(message.role==='user')await this.editResend(message,message.content);else await this.regenerate(message)}finally{this.settings.searchMode=old}},
     async renameCategory(kind: 'folder' | 'tag', old: string, next: string) {for(const value of Object.values(this.organization)){if(kind==='folder' && value.folder===old)value.folder=next;if(kind==='tag')value.tags=[...new Set((value.tags || []).map(t=>t===old?next:t).filter(Boolean))]}if(api.isTauri)await api.saveExtension('v3:organization',this.organization)},
-    async continueReply(message: Message) { if (this.loading || this.profileBusy || !this.active) return; const index = this.active.messages.findIndex(m => m.id === message.id); this.active.messages = this.active.messages.slice(0, index + 1); await this.send('请从上一条回答结束处继续生成，避免重复已有内容。') },
+    async continueReply(message: Message) {
+      if(this.loading || this.profileBusy || !this.active || !this.active.messages.some(m=>m.id===message.id))return
+      return this.send('请从上一条回答结束处继续生成，避免重复已有内容。',[],{parentId:message.id,rollbackLeaf:this.active.messages.at(-1)?.id || null})
+    },
     quote(message: Message, selectedText?: string) { const text = selectedText || message.content; this.references = [{messageId: message.id, text}] },
     async organize(id: string, value: Organization) { const next={...this.organization,[id]:value};if (api.isTauri) await api.saveExtension('v3:organization', next);this.organization=next },
     async savePreset(preset: Preset) { const next=this.presets.filter(p=>p.id!==preset.id);const index=this.presets.findIndex(p=>p.id===preset.id);next.splice(index<0?next.length:index,0,preset);if(api.isTauri)await api.saveExtension('v3:presets',next);this.presets=next },
     async deletePreset(id: string) { const next=this.presets.filter(p=>p.id!==id);if(api.isTauri)await api.saveExtension('v3:presets',next);this.presets=next },
-    async applyPreset(id: string) { const preset = this.presets.find(p => p.id === id); if (!preset || this.loading) return; if (preset.profileId) {if(!this.profiles.some(p=>p.id===preset.profileId)){this.error='预设绑定的 API Profile 已删除';return}await this.switchProfile(preset.profileId)} else if(preset.profileId==='') await this.saveSettings({...this.settings,profileId:''}); const settings = {...this.settings}; if (preset.thinking) settings.thinking = preset.thinking; if (preset.searchMode) { settings.searchMode = preset.searchMode; settings.webSearch = preset.searchMode !== 'off' } await this.saveSettings(settings); if (preset.model) await this.setModel(preset.model); if (preset.systemPrompt !== undefined) await this.setConversationPrompt(preset.systemPrompt) },
-    async requestReply(content: string, assistant: Message, persistUser: boolean, attachments: Attachment[] = []) {
+    async applyPreset(id: string) {
+      if(this.loading || this.profileBusy)throw new Error('请等待当前操作完成')
+      const preset=this.presets.find(p=>p.id===id)
+      if(!preset)throw new Error('预设已不存在')
+      const conversation=this.active
+      if(!conversation)throw new Error('请先选择会话')
+      let settings=snapshotSettings(this.settings)
+      if(preset.profileId){
+        const profile=this.profiles.find(p=>p.id===preset.profileId)
+        if(!profile)throw new Error('预设绑定的 API Profile 已删除')
+        if(!profile.hasKey)throw new Error('请先为预设绑定的 API 配置填写 API Key')
+        settings={...settings,profileId:profile.id,baseUrl:profile.baseUrl,provider:profile.provider,model:profile.model,thinking:profile.thinking,requestOptions:profile.requestOptions,searchModel:''}
+        if(['grok','deepseek','openai-compatible'].includes(profile.provider))settings={...settings,searchProvider:'searxng',searchMode:settings.searchBaseUrl?'auto':'off',webSearch:!!settings.searchBaseUrl}
+      }else if(preset.profileId==='')settings={...settings,profileId:''}
+      if(preset.model!==undefined){if(!preset.model.trim())throw new Error('预设模型 ID 不能为空');settings.model=preset.model.trim()}
+      if(preset.profileId && !settings.model.trim())throw new Error('请先为预设绑定的 API 配置选择模型')
+      if(preset.thinking)settings.thinking=preset.thinking
+      if(preset.searchMode){settings.searchMode=preset.searchMode;settings.webSearch=preset.searchMode!=='off'}
+      validateSearch(settings)
+      this.profileBusy=true
+      try{
+        const saved=api.isTauri?await api.applyPresetSettings(settings,conversation.id,preset.systemPrompt):settings
+        this.acceptSettings(saved);conversation.model=saved.model
+        if(preset.systemPrompt!==undefined)conversation.systemPrompt=preset.systemPrompt
+        this.error=''
+        return true
+      }catch(e){this.error=friendlyError(e);throw e}finally{this.profileBusy=false}
+    },
+    async requestReply(content: string, assistant: Message, persistUser: boolean, attachments: Attachment[] = [], branch?: ReplyBranch) {
       if (!this.active) return
       const request=snapshotSettings(this.settings)
       this.activeRequestId=assistant.id
@@ -239,10 +291,23 @@ export const useChatStore = defineStore('chat', {
       try { const user = this.active.messages.at(-2); const parentId = persistUser ? user?.parentId || null : assistant.parentId || null
         await api.sendMessage(conversationId, content, request, persistUser, attachments, parentId, persistUser ? user?.references || [] : [],assistant.id)
         this.flushDeltas(); await this.refreshTree(conversationId); this.references = []; this.status=this.stopping?'stopped':'completed'
-      } catch (e) { this.flushDeltas(); try { await this.refreshTree(conversationId) } catch {} if (this.activeId === conversationId) this.error = friendlyError(e); assistant.pending = false; this.status=this.stopping?'stopped':'failed'; if(!this.stopping)useUiStore().notify(this.error,'error',()=>void this.retry()) }
+      } catch (e) {
+        this.flushDeltas()
+        let restorationError=''
+        try{if(branch)await api.selectBranch(conversationId,branch.rollbackLeaf);await this.refreshTree(conversationId)}catch(restore){if(branch?.previousMessages){const conversation=this.conversations.find(c=>c.id===conversationId);if(conversation)conversation.messages=branch.previousMessages}restorationError=`；恢复原路径失败：${friendlyError(restore)}`}
+        if(this.activeId===conversationId)this.error=friendlyError(e)+restorationError
+        assistant.pending=false;this.status=this.stopping?'stopped':'failed'
+        if(branch && !this.stopping)this.failedReply={conversationId,content,attachments,persistUser,branch}
+        if(!this.stopping)useUiStore().notify(this.error,'error',()=>{
+          if(this.activeId!==conversationId){useUiStore().notify('请先返回原会话重试','info');return}
+          if(branch && persistUser)void this.send(content,attachments,branch)
+          else if(branch){const original=this.active?.messages.find(m=>m.role==='assistant' && m.parentId===branch.parentId);if(original)void this.regenerate(original)}
+          else void this.retry()
+        })
+      }
       finally { this.loading = false; this.stopping=false;this.requestSettings=null;this.activeRequestId='';delete this.pendingOrigins[assistant.id] }
     },
-    async retry() { const last=this.active?.messages.at(-1); if(!last || this.loading)return; if(last.role==='assistant')await this.regenerate(last);else if(last.role==='user'){const assistant:Message={id:crypto.randomUUID(),parentId:last.id,role:'assistant',content:'',createdAt:new Date().toISOString(),pending:true};this.active!.messages.push(assistant);this.loading=true;this.stopping=false;this.error='';this.status='connecting';await this.requestReply(last.content,assistant,false)} },
+    async retry() { if(this.loading || this.profileBusy)return;const failed=this.failedReply;if(failed && failed.conversationId===this.activeId){if(failed.persistUser){await this.send(failed.content,failed.attachments,failed.branch);return}const original=this.active?.messages.find(m=>m.role==='assistant' && m.parentId===failed.branch.parentId);if(original){await this.regenerate(original);return}}const last=this.active?.messages.at(-1); if(!last)return;try{this.validateSend()}catch(e){this.error=friendlyError(e);return} if(last.role==='assistant')await this.regenerate(last);else if(last.role==='user'){const assistant:Message={id:crypto.randomUUID(),parentId:last.id,role:'assistant',content:'',createdAt:new Date().toISOString(),pending:true};this.active!.messages.push(assistant);this.loading=true;this.stopping=false;this.error='';this.status='connecting';await this.requestReply(last.content,assistant,false)} },
     async stop() { if(!this.loading || this.stopping)return; this.stopping=true; try { if (api.isTauri) { await api.stopGeneration(); return } this.loading = false; this.stopping=false;this.requestSettings=null;this.activeRequestId=''; this.status='stopped'; const msg = this.active?.messages.at(-1); if (msg) msg.pending = false } catch(e){this.stopping=false;useUiStore().failure(e)} }
   }
 })

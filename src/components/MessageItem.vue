@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { searchQueries } from '../utils/searchTrace'
+import { searchStatusLabel } from '../utils/searchTrace'
 import { useChatStore } from '../stores/chat'
 import { useUiStore } from '../stores/ui'
 import { computed, ref } from 'vue'
 import { Copy, Check, Quote, RotateCcw, Pencil, ArrowRight, GitCompareArrows, ChevronLeft, ChevronRight, FileText, FileCode2, Sparkles, ChartNoAxesCombined, Globe } from '@lucide/vue'
 import type { Attachment, Message, Usage } from '../types'
-import { renderMarkdown } from '../utils/markdown'
-import { codeAction } from '../utils/codeActions'
+import RichContent from './RichContent.vue'
+import AttachmentThumbnail from './AttachmentThumbnail.vue'
+
 import { usageOriginLabel, thinkingOriginLabel } from '../utils/usageOrigin'
 import ActionMenu from './ActionMenu.vue'
 import BaseModal from './BaseModal.vue'
@@ -15,11 +17,11 @@ import { providerLabel } from '../chatProviders'
 const props=defineProps<{message:Message;canRegenerate?:boolean;codeAttachments?:Attachment[];usage?:Usage}>()
 const emit=defineEmits<{regenerate:[];preview:[attachment:Attachment];diff:[attachment:Attachment,proposed:string]}>()
 const chat=useChatStore(), ui=useUiStore(), article=ref<HTMLElement>(), copied=ref(false), editing=ref(false), editedText=ref(''), usageOpen=ref(false), chooseCode=ref(false)
-const html=computed(()=>renderMarkdown(props.message.content))
+
 const origin=computed(()=>props.message.usageId?chat.requestOrigins[props.message.usageId]:chat.pendingOrigins[props.message.id])
 async function copy(){try{await navigator.clipboard.writeText(props.message.content);copied.value=true;ui.notify('消息已复制');setTimeout(()=>copied.value=false,1400)}catch(e){ui.failure(e)}}
 function edit(){editedText.value=props.message.content;editing.value=true}
-async function resend(){if(!editedText.value.trim())return;try{await chat.editResend(props.message,editedText.value);editing.value=false}catch(e){ui.failure(e)}}
+async function resend(){if(!editedText.value.trim())return;try{if(await chat.editResend(props.message,editedText.value))editing.value=false}catch(e){ui.failure(e)}}
 function quote(){const selection=window.getSelection();const selected=selection?.anchorNode && selection.focusNode && article.value?.querySelector('.markdown')?.contains(selection.anchorNode) && article.value?.querySelector('.markdown')?.contains(selection.focusNode)?selection.toString().trim():'';chat.quote(props.message,selected || undefined);ui.notify('已加入回复引用','info')}
 const versions=computed(()=>chat.versions(props.message)), versionIndex=computed(()=>versions.value.findIndex(m=>m.id===props.message.id))
 const proposal=computed(()=>/```(?:[\w.+-]+)?\s*\n([\s\S]*?)\n```/.exec(props.message.content)?.[1] || '')
@@ -30,12 +32,12 @@ function reviewCode(){const files=props.codeAttachments || [];if(!proposal.value
  <article ref="article" :class="['message',message.role]">
   <div v-if="message.role==='assistant'" class="message-name"><Sparkles :size="16"/>ClaudeChat <span v-if="origin || usage" class="message-connection" :title="origin?`${providerLabel(origin.provider)} · ${origin.model} · ${origin.profileName || origin.profileId}`:'历史记录仅保留 Usage 模型；Provider 来源未记录'">{{ origin?providerLabel(origin.provider):'历史模型' }} · {{ origin?.model || usage?.model }}</span></div>
   <div class="message-body">
-   <div v-if="message.attachments?.length" class="attachment-list"><button v-for="item in message.attachments" :key="item.id" class="attachment-card attachment-open" :aria-label="`预览 ${item.name}`" @click="emit('preview',item)"><img v-if="item.kind==='image'" :src="`data:${item.mime};base64,${item.data}`" :alt="item.name"/><component v-else :is="item.kind==='code'?FileCode2:FileText" :size="23"/><span><strong>{{ item.name }}</strong><small>{{ Math.ceil(item.size/1024) }} KB · 点击预览</small></span></button></div>
+   <div v-if="message.attachments?.length" class="attachment-list"><button v-for="item in message.attachments" :key="item.id" class="attachment-card attachment-open" :aria-label="`预览 ${item.name}`" @click="emit('preview',item)"><AttachmentThumbnail v-if="item.kind==='image'" :attachment="item"/><component v-else :is="item.kind==='code'?FileCode2:FileText" :size="23"/><span><strong>{{ item.name }}</strong><small>{{ Math.ceil(item.size/1024) }} KB · 点击预览</small></span></button></div>
    <blockquote v-for="reference in message.references" :key="reference.messageId" class="message-reference"><button :disabled="chat.loading" @click="chat.jumpNode(reference.messageId)">查看引用来源</button><p>{{ reference.text }}</p></blockquote>
    <details v-if="message.reasoningContent" class="reasoning-panel"><summary><Sparkles :size="14"/>{{ message.pending?'思考过程':'已思考' }}<span>{{ message.reasoningContent.length.toLocaleString() }} 字符</span></summary><pre>{{ message.reasoningContent }}</pre></details>
-   <details v-if="message.searchTrace && message.searchTrace.status!=='off'" class="search-trace"><summary><Globe :size="14"/>搜索过程 · {{ ({completed:'完成',cancelled:'已停止',searching:'搜索中',generating:'生成回答'} as Record<string,string>)[message.searchTrace.status] || message.searchTrace.status }}<span>{{ message.searchTrace.sources }} 个来源</span></summary><p v-if="searchQueries(message).length">关键词：{{ searchQueries(message).join(' · ') }}</p><p v-else>Provider 未返回搜索关键词。</p><button :disabled="chat.loading" @click="chat.reSearch(message)">重新搜索并生成新版本</button></details>
+   <details v-if="message.searchTrace && message.searchTrace.status!=='off'" class="search-trace"><summary><Globe :size="14"/>搜索过程 · {{ searchStatusLabel(message.searchTrace.status) }}<span>{{ message.searchTrace.sources }} 个来源</span></summary><p v-if="message.searchTrace.error" class="error">{{ message.searchTrace.error }}</p><p v-if="searchQueries(message).length">关键词：{{ searchQueries(message).join(' · ') }}</p><p v-else>Provider 未返回搜索关键词。</p><button :disabled="chat.loading" @click="chat.reSearch(message)">重新搜索并生成新版本</button></details>
    <form v-if="editing" class="message-edit" @submit.prevent="resend"><textarea v-model="editedText" rows="5" aria-label="编辑历史消息"/><div><button class="primary" type="submit" :disabled="chat.loading || !editedText.trim()">创建分支并重发</button><button class="secondary" type="button" @click="editing=false">取消</button></div></form>
-   <div v-else-if="message.content" class="markdown" v-html="html" @click="codeAction"/>
+   <RichContent v-else-if="message.content" :content="message.content"/>
    <div v-else-if="message.pending" class="thinking" aria-hidden="true"><i/><i/><i/></div>
    <SourceList v-if="message.sources?.length" :key="message.id" :sources="message.sources"/>
   </div>

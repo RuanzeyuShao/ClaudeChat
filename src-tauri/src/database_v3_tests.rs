@@ -20,6 +20,32 @@ fn legacy() -> Database {
     Database { conn }
 }
 
+#[test]
+fn preset_settings_and_prompt_restore_together_and_rollback_on_failure(){
+    let db=legacy();migrate_v3(&db.conn).unwrap();
+    let mut settings=crate::connection::read(&db).unwrap();settings.model="custom-model".into();settings.thinking="high".into();settings.search_mode="off".into();settings.web_search=false;
+    let before=serde_json::to_value(db.messages("c").unwrap()).unwrap();
+    crate::connection::persist_with_prompt(&db,&settings,Some("c"),Some("new prompt")).unwrap();
+    // Simulate another conversation changing the global selection before restart.
+    db.set_setting("thinking","low").unwrap();db.set_setting("search_mode","auto").unwrap();
+    let restored=crate::connection::restore(&db,"c").unwrap();assert_eq!(restored.thinking,"high");assert_eq!(restored.search_mode,"off");assert_eq!(db.system_prompt("c").unwrap(),"new prompt");
+    assert_eq!(serde_json::to_value(db.messages("c").unwrap()).unwrap(),before);
+    let snapshot=db.extension("v4:conversationConnection:c").unwrap();
+    db.conn.execute_batch("CREATE TRIGGER deny_prompt BEFORE UPDATE OF system_prompt ON conversations BEGIN SELECT RAISE(ABORT,'disk failure'); END;").unwrap();
+    settings.thinking="medium".into();settings.model="different".into();
+    assert!(crate::connection::persist_with_prompt(&db,&settings,Some("c"),Some("failed prompt")).is_err());
+    assert_eq!(db.setting("thinking").unwrap().as_deref(),Some("high"));assert_eq!(db.extension("v4:conversationConnection:c").unwrap(),snapshot);assert_eq!(db.system_prompt("c").unwrap(),"new prompt");assert_eq!(db.conversations().unwrap()[0].model,"custom-model");
+}
+
+#[test]
+fn search_failure_trace_survives_reload_without_changing_references_or_usage(){
+    let db=legacy();migrate_v3(&db.conn).unwrap();
+    let refs=vec![MessageReference{message_id:"u".into(),text:"quote".into()}];db.annotate_leaf("c",&refs,None).unwrap();
+    let usage_before=serde_json::to_value(db.usage().unwrap()).unwrap();
+    db.set_leaf_search_trace("c",&serde_json::json!({"status":"failed","sources":0,"error":"SearXNG unavailable"})).unwrap();
+    let last=db.active_messages("c").unwrap().pop().unwrap();assert_eq!(last.references[0].text,"quote");assert_eq!(last.search_trace.unwrap()["status"],"failed");assert_eq!(serde_json::to_value(db.usage().unwrap()).unwrap(),usage_before);
+}
+
 #[derive(Default)]
 struct FakeSecrets {
     values: std::cell::RefCell<std::collections::HashMap<String, String>>,
