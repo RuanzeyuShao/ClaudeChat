@@ -50,6 +50,10 @@ for(const sample of [{width:1440,height:900,scale:1,theme:'light'},{width:800,he
   await expect.poll(()=>gap(page)).toBeLessThanOrEqual(4)
   const end=await page.locator('.message.assistant').last().boundingBox(),list=await page.locator('.messages').boundingBox(),input=await page.locator('.input-box').boundingBox(),dock=await page.locator('.composer-dock').boundingBox();expect(end!.y+end!.height).toBeLessThanOrEqual(list!.y+list!.height+1);expect(list!.y+list!.height).toBeLessThanOrEqual(dock!.y+1);expect(dock!.y+dock!.height).toBeLessThanOrEqual(sample.height+1);expect(list!.height).toBeGreaterThan(90)
   await expect(page.getByText('最后一条消息的末尾验证标记。',{exact:true})).toBeInViewport();await expect(page.getByRole('button',{name:'配置思考强度',exact:true})).toBeInViewport();expect(await page.locator('.input-footer').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);expect(input!.width).toBeGreaterThan(200)
-  mkdirSync('dist-release/v0.1.4/screenshots',{recursive:true});await page.screenshot({path:`dist-release/v0.1.4/screenshots/composer-scroll-${sample.theme}-${sample.scale}.png`})
+  await page.evaluate(async()=>{const path='/src/stores/chat.ts';const {useChatStore}=await import(path);useChatStore().status='completed'})
+  await page.locator('.messages').evaluate(el=>{el.dispatchEvent(new WheelEvent('wheel',{deltaY:-80,bubbles:true}));el.scrollTop-=80})
+  const latest=page.getByRole('button',{name:'回到最新消息',exact:true}),status=page.locator('.request-status');await expect(latest).toBeVisible();await expect(status).toHaveText('已完成')
+  const latestBox=await latest.boundingBox(),statusBox=await status.boundingBox();expect(latestBox!.y+latestBox!.height/2).toBeCloseTo(statusBox!.y+statusBox!.height/2,0);expect(latestBox!.x+latestBox!.width).toBeLessThan(statusBox!.x)
+  mkdirSync('dist-release/v0.1.5/screenshots',{recursive:true});await page.screenshot({path:`dist-release/v0.1.5/screenshots/composer-notices-${sample.theme}-${sample.scale}.png`})
  }finally{await context.close()}
 })
