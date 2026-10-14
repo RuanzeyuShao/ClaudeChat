@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
-const directory='dist-release/v0.1.4/screenshots'
+const directory='dist-release/v0.1.5/screenshots'
 test('welcome, Provider cancellation, menus and keyboard shortcuts',async({page})=>{
  await page.goto('/',{waitUntil:'domcontentloaded'})
  await expect(page.getByRole('heading',{name:'从一个想法开始'})).toBeVisible()
@@ -16,16 +16,16 @@ test('welcome, Provider cancellation, menus and keyboard shortcuts',async({page}
  await expect(page.getByRole('textbox',{name:'聊天输入框',exact:true})).toBeFocused()
  await page.getByRole('textbox',{name:'聊天输入框',exact:true}).fill('草稿不会丢失')
  await page.keyboard.press('Control+n')
- await expect(page.getByRole('textbox',{name:'聊天输入框',exact:true})).toHaveValue('')
- await expect(page.locator('.conversation-link')).toHaveCount(2)
- await page.locator('.conversation-link').nth(1).click()
+ await expect(page.getByRole('textbox',{name:'聊天输入框',exact:true})).toHaveValue('草稿不会丢失')
+ await expect(page.locator('.conversation-link')).toHaveCount(1)
+ await page.locator('.conversation-link').first().click()
  await expect(page.getByRole('textbox',{name:'聊天输入框',exact:true})).toHaveValue('草稿不会丢失')
  await page.keyboard.press('Control+k')
  await expect(page.getByRole('searchbox',{name:'搜索历史对话'})).toBeFocused()
  await page.getByRole('searchbox',{name:'搜索历史对话'}).fill('没有此标题')
  await expect(page.getByText('没有匹配的对话')).toBeVisible()
  await page.getByRole('button',{name:'清空搜索'}).click()
- await expect(page.locator('.conversation-link')).toHaveCount(2)
+ await expect(page.locator('.conversation-link')).toHaveCount(1)
 })
 test('IME candidates, expanded draft, rename and theme preferences',async({page})=>{
  await page.goto('/',{waitUntil:'domcontentloaded'})

@@ -1,0 +1,11 @@
+{
+  "product": "ClaudeChat",
+  "version": "0.1.5",
+  "platform": "windows-x64",
+  "installer": "ClaudeChat_0.1.5_x64-setup.exe",
+  "bytes": 6937570,
+  "sha256": "0eab6a6701f3165c8813f88f6323ed9e17cb1281ceb907490e9c1a45d9a21b3b",
+  "builtAt": "2026-10-14T09:01:26.713Z",
+  "branch": "v0.1.5",
+  "remotePublished": true
+}

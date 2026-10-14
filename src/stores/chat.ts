@@ -16,7 +16,7 @@ export type RequestStatus = 'idle' | 'connecting' | 'searching' | 'thinking' | '
 interface ReplyBranch { parentId: string | null; rollbackLeaf: string | null; previousMessages?:Message[] }
 interface FailedReply {conversationId:string;content:string;attachments:Attachment[];persistUser:boolean;branch:ReplyBranch}
 export const useChatStore = defineStore('chat', {
-  state: () => ({ conversations: [] as Conversation[], activeId: '' as string, settings: { ...defaultSettings }, profiles: [] as ApiProfile[], usage: [] as Usage[], loading: false, error: '', initialized: false, profileBusy: false, activeRequestId:'',requestCompletion:null as GenerationInfo | null,failedReply:null as FailedReply | null,requestSettings:null as Settings | null,requestOrigins:{} as Record<string,RequestIdentity>,pendingOrigins:{} as Record<string,RequestIdentity>, usageOrigins: {} as Record<string,{input:string;output:string;thinking:string}>, status: 'idle' as RequestStatus, stopping: false, sendMode: 'enter' as 'enter' | 'ctrl-enter', drafts: {} as Record<string, { text: string; attachments: Attachment[] }>, providerPreferences: {} as Partial<Record<ChatProviderId, ProviderPreference>>, trees: {} as Record<string, Message[]>, presets: [] as Preset[], organization: {} as Record<string, Organization>, references: [] as MessageReference[] }),
+  state: () => ({ conversations: [] as Conversation[], activeId: '' as string, blankConversationId: '', fontSize: 14, settings: { ...defaultSettings }, profiles: [] as ApiProfile[], usage: [] as Usage[], loading: false, error: '', initialized: false, profileBusy: false, activeRequestId:'',requestCompletion:null as GenerationInfo | null,failedReply:null as FailedReply | null,requestSettings:null as Settings | null,requestOrigins:{} as Record<string,RequestIdentity>,pendingOrigins:{} as Record<string,RequestIdentity>, usageOrigins: {} as Record<string,{input:string;output:string;thinking:string}>, status: 'idle' as RequestStatus, stopping: false, sendMode: 'enter' as 'enter' | 'ctrl-enter', drafts: {} as Record<string, { text: string; attachments: Attachment[] }>, providerPreferences: {} as Partial<Record<ChatProviderId, ProviderPreference>>, trees: {} as Record<string, Message[]>, presets: [] as Preset[], organization: {} as Record<string, Organization>, references: [] as MessageReference[] }),
   getters: { active(state): Conversation | undefined { return state.conversations.find(x => x.id === state.activeId) } },
   actions: {
     async initialize() {
@@ -25,6 +25,7 @@ export const useChatStore = defineStore('chat', {
       const media=window.matchMedia('(prefers-color-scheme: dark)')
       const onTheme=()=>{if(this.settings.theme==='system')this.applyTheme('system')}
       media.addEventListener('change',onTheme);listeners.push(()=>media.removeEventListener('change',onTheme))
+      await this.loadFontSize()
       if (!api.isTauri) {  this.applyTheme(this.settings.theme); await this.newConversation(); return }
       this.settings = { ...defaultSettings, ...await api.getSettings() }
       this.drafts = await api.getExtension<typeof this.drafts>('v4:drafts') || {}
@@ -35,6 +36,7 @@ export const useChatStore = defineStore('chat', {
       listeners.push(await listen<{id:string;origin:{input:string;output:string;thinking:string}}>('chat-usage-origin',({payload})=>{this.usageOrigins[payload.id]=payload.origin}))
       this.applyTheme(this.settings.theme)
       this.conversations = await api.getConversations()
+      this.blankConversationId = await api.getExtension<string>('v5:blankConversation') || ''
       const lastId=await api.getExtension<string>('v4:lastConversation')
       if (this.conversations.length) await this.select(this.conversations.some(c=>c.id===lastId)?lastId!:this.conversations[0].id); else await this.newConversation()
       listeners.push(await listen<{id:string;request:RequestIdentity}>('chat-request-origin',({payload})=>{this.requestOrigins[payload.id]=payload.request}))
@@ -90,11 +92,23 @@ export const useChatStore = defineStore('chat', {
       if (this.loading || this.profileBusy) return
       this.profileBusy=true
       try{
+        const blank=this.conversations.find(c=>c.id===this.blankConversationId)
+        if(blank && !(this.trees[blank.id] || blank.messages).length){
+          if(api.isTauri)await this.refreshTree(blank.id)
+          if(!(this.trees[blank.id] || blank.messages).length){
+            if(this.activeId!==blank.id){
+              const settings=api.isTauri?await api.selectConversation(blank.id):{...this.settings,selectedMessageIds:[],selectedAttachmentIds:[]}
+              this.acceptSettings(settings);this.activeId=blank.id;this.references=[];this.error=''
+            }
+            return
+          }
+        }
         const now = new Date().toISOString()
         const item: Conversation = api.isTauri ? await api.createConversation(this.settings.model) : { id: crypto.randomUUID(), title: '准备开始', model: this.settings.model, createdAt: now, updatedAt: now, messages: [], systemPrompt: '' }
         const settings=api.isTauri?await api.selectConversation(item.id):this.settings
         this.acceptSettings(settings);item.model=this.settings.model
-        this.conversations.unshift(item);this.references=[];this.settings.selectedMessageIds=[];this.settings.selectedAttachmentIds=[];this.activeId=item.id;this.error=''
+        this.conversations.unshift(item);this.references=[];this.settings.selectedMessageIds=[];this.settings.selectedAttachmentIds=[];this.activeId=item.id;this.error='';this.blankConversationId=item.id
+        if(api.isTauri)await api.saveExtension('v5:blankConversation',item.id)
       }finally{this.profileBusy=false}
     },
     async select(id:string) {
@@ -174,6 +188,20 @@ export const useChatStore = defineStore('chat', {
       if(profile.provider==='grok' && !saved)await this.saveSettings({...this.settings,searchProvider:'searxng',searchModel:'',searchMode:this.settings.searchBaseUrl?'auto':'off',apiKey:''})
       if(saved && saved.profileId===profile.id){await this.saveSettings({...this.settings,...saved,apiKey:''});if(saved.model)await this.setModel(saved.model)}
       await this.rememberProvider()
+    },
+    async loadFontSize() {
+      const value=api.isTauri?await api.getExtension<number>('v5:fontSize'):Number(localStorage.getItem('claudechat.fontSize'))
+      this.applyFontSize(value ?? 14)
+    },
+    applyFontSize(value:number) {
+      this.fontSize=Number.isFinite(value) && value>=12 && value<=24?Math.round(value):14
+      document.documentElement.style.setProperty('--font-scale',String(this.fontSize/14))
+    },
+    async setFontSize(value:number) {
+      if(!Number.isFinite(value) || value<12 || value>24)throw new Error('字体大小须为 12–24 px')
+      if(api.isTauri)await api.saveExtension('v5:fontSize',Math.round(value))
+      else localStorage.setItem('claudechat.fontSize',String(Math.round(value)))
+      this.applyFontSize(value)
     },
     applyTheme(theme: ThemeMode) {
       const dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)

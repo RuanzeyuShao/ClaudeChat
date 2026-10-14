@@ -3,9 +3,9 @@
   <h1>ClaudeChat</h1>
   <p>自由配置模型、本地保存对话的 Windows 桌面聊天客户端</p>
   <p>
-    <a href="https://github.com/RuanzeyuShao/ClaudeChat/raw/refs/heads/v0.1.4/installers/v0.1.4/ClaudeChat_0.1.4_x64-setup.exe"><strong>下载 Windows x64 · v0.1.4</strong></a>
-    · <a href="https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.4">原始 Release / Assets</a>
-    · <a href="https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4">v0.1.4 源码</a>
+    <a href="https://github.com/RuanzeyuShao/ClaudeChat/raw/refs/heads/v0.1.5/installers/v0.1.5/ClaudeChat_0.1.5_x64-setup.exe"><strong>下载 Windows x64 · v0.1.5</strong></a>
+    · <a href="docs/v0.1.5-test-report.md">v0.1.5 验证报告</a>
+    · <a href="https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.5">v0.1.5 源码</a>
   </p>
 </div>
 
@@ -13,9 +13,11 @@ ClaudeChat 面向日常问答、写作、文档阅读和代码讨论。支持 Cl
 
 ## 下载与安装
 
-点击上方下载入口，运行 `ClaudeChat_0.1.4_x64-setup.exe` 即可安装。使用安装包无需安装 Node.js 或 Rust；更新前请先退出正在运行的 ClaudeChat。
+点击上方下载入口，运行 `ClaudeChat_0.1.5_x64-setup.exe` 即可安装。使用安装包无需安装 Node.js 或 Rust；更新前请先退出正在运行的 ClaudeChat。
 
-当前下载入口提供 **2026-10-14 长文本修复版**，版本仍为 0.1.4。安装包、[SHA-256 校验文件](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.4/installers/v0.1.4/SHA256SUMS.txt)和构建清单位于 [v0.1.4 分支的安装包目录](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4/installers/v0.1.4)。本次新增长文本自动续写、断流内容保存、完成状态与用量合并；此前消息失败恢复、附件筛选、预设、搜索及统计修复继续保留。[长文本修复与验证报告](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.4/docs/v0.1.4-long-output-report.md)。
+v0.1.5 新增字体大小设置，修复重复创建空对话，并支持超长标题悬停滚动。安装包、[SHA-256 校验文件](installers/v0.1.5/SHA256SUMS.txt)与构建清单位于 [安装包目录](installers/v0.1.5/)；验证说明见 [v0.1.5 验证报告](docs/v0.1.5-test-report.md)。
+
+在 **设置 → 通用偏好 → 字体大小** 中选择 12–24 px，保存后下次启动自动恢复。反复点击 **新建对话** 或按 `Ctrl+N` 会复用同一个未发送消息的会话，并保留草稿和附件；已有消息后才创建下一份对话。旧版产生的空会话可自行删除。浅色主题的历史标题使用黑色，超长标题在鼠标悬停时滚动完整显示，移开后恢复省略；深色主题保留浅色文字。
 
 你需要自己的 Provider API Key；模型调用费用由对应服务商收取，支持的模型和能力取决于所选 API 或中转站。
 
@@ -41,7 +43,7 @@ ClaudeChat 面向日常问答、写作、文档阅读和代码讨论。支持 Cl
 | 附件与预览 | 图片、PDF、DOCX、TXT、Markdown 和代码附件；支持预览、代码高亮与 Diff，识图能力取决于模型 |
 | 联网与来源 | Provider API 搜索或 SearXNG；来源去重、引用编号保留、默认显示前三项并支持展开 |
 | 会话与用量 | 历史搜索、置顶、文件夹、标签、Prompt 预设、Markdown / PDF 导出；Token、耗时和费用统计 |
-| 界面与阅读 | Light / Dark / System 主题、侧栏调整与响应式布局；向上阅读暂停跟随，新回答在输入框上方提示 |
+| 界面与阅读 | Light / Dark / System 主题、12–24 px 字体大小、标题悬停滚动、侧栏调整与响应式布局；向上阅读暂停跟随，新回答在输入框上方提示 |
 
 ## 联网搜索怎么配置
 
@@ -54,7 +56,7 @@ ClaudeChat 面向日常问答、写作、文档阅读和代码讨论。支持 Cl
 
 当前客户端已接入 Claude、OpenAI、Kimi 和 GLM 的部分 API 搜索路径，仍需具体模型支持；GPT 的 Chat Completions 搜索需要搜索专用模型。DeepSeek、Grok 和通用 OpenAI 兼容连接当前使用 SearXNG。
 
-**自动联网**按问题中的关键词或问号触发；**始终联网**为每轮请求开启搜索。遇到“请先设置 SearXNG 地址”时，请填写实例地址，或切换为“不联网”。[详细搜索说明](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.4/docs/v0.1.4-search-confirm-report.md)
+**自动联网**按问题中的关键词或问号触发；**始终联网**为每轮请求开启搜索。遇到“请先设置 SearXNG 地址”时，请填写实例地址，或切换为“不联网”。[详细搜索说明](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.5/docs/v0.1.4-search-confirm-report.md)
 
 ## 数据与费用
 
@@ -84,10 +86,10 @@ ClaudeChat 面向日常问答、写作、文档阅读和代码讨论。支持 Cl
 
 准备 Node.js、Rust 和 [Tauri 2 系统依赖](https://v2.tauri.app/start/prerequisites/)。Windows 构建还需 C++ 构建工具与 WebView2；浏览器回归默认使用 Microsoft Edge。
 
-当前发布版本源码在 `v0.1.4` 分支，运行或构建该版本请从此分支检出：
+当前发布版本源码在 `v0.1.5` 分支，运行或构建该版本请从此分支检出：
 
 ```powershell
-git clone --branch v0.1.4 https://github.com/RuanzeyuShao/ClaudeChat.git claude-chat
+git clone --branch v0.1.5 https://github.com/RuanzeyuShao/ClaudeChat.git claude-chat
 cd claude-chat
 npm ci
 npm run tauri:dev
@@ -109,15 +111,15 @@ npm run tauri:build -- --bundles nsis
 npm run release:collect
 ```
 
-NSIS 安装包默认生成于 `src-tauri/target/release/bundle/nsis/`；收集脚本将安装包、校验值与验证资料整理到 `dist-release/v0.1.4/`。
+NSIS 安装包默认生成于 `src-tauri/target/release/bundle/nsis/`；收集脚本将安装包、校验值与验证资料整理到 `dist-release/v0.1.5/`。
 
 </details>
 
 ## 文档与反馈
 
-- [版本更新日志](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.4/CHANGELOG.md)
-- [v0.1.4 验证报告](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.4/docs/v0.1.4-test-report.md)
-- [界面设计说明](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.4/docs/v0.1.4-design.md)
+- [版本更新日志](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.5/CHANGELOG.md)
+- [v0.1.5 验证报告](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.5/docs/v0.1.5-test-report.md)
+- [界面设计说明](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.5/docs/v0.1.4-design.md)
 - [反馈问题或建议](https://github.com/RuanzeyuShao/ClaudeChat/issues)：请说明版本、Provider、模型、错误提示及复现步骤。
 
 ## 开源协议
