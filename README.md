@@ -15,7 +15,7 @@ ClaudeChat 面向日常问答、写作、文档阅读和代码讨论。支持 Cl
 
 点击上方下载入口，运行 `ClaudeChat_0.1.4_x64-setup.exe` 即可安装。使用安装包无需安装 Node.js 或 Rust；更新前请先退出正在运行的 ClaudeChat。
 
-当前下载入口提供 **2026-10-13 修复版**，版本仍为 0.1.4。安装包、[SHA-256 校验文件](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.4/installers/v0.1.4/SHA256SUMS.txt)和构建清单位于 [v0.1.4 分支的安装包目录](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4/installers/v0.1.4)。本次修复涵盖消息失败恢复、附件筛选、预设保存、引用、搜索状态与取消、跨日统计；[修复与验证报告](docs/v0.1.4-reliability-fix-report.md)。
+当前下载入口提供 **2026-10-14 长文本修复版**，版本仍为 0.1.4。安装包、[SHA-256 校验文件](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.4/installers/v0.1.4/SHA256SUMS.txt)和构建清单位于 [v0.1.4 分支的安装包目录](https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.4/installers/v0.1.4)。本次新增长文本自动续写、断流内容保存、完成状态与用量合并；此前消息失败恢复、附件筛选、预设、搜索及统计修复继续保留。[长文本修复与验证报告](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.4/docs/v0.1.4-long-output-report.md)。
 
 你需要自己的 Provider API Key；模型调用费用由对应服务商收取，支持的模型和能力取决于所选 API 或中转站。
 
@@ -29,6 +29,8 @@ ClaudeChat 面向日常问答、写作、文档阅读和代码讨论。支持 Cl
 聊天时，点击输入框底部的模型按钮即可选择 Provider、API Profile 和模型。**选中模型只收起模型列表，配置界面继续保留**；完成思考与搜索设置后，点击 **应用配置**，下一轮消息使用新配置。
 
 正在生成时可以查看并暂选配置；停止或完成当前回答后才能应用。在 **设置 → API 配置** 中同样先保留编辑草稿，再通过 **保存配置** 或 **保存并启用** 提交。保存其他未启用的 Profile 不会自动切换当前聊天连接。
+
+长回答达到单次输出上限后会自动续写并合并为同一条回答，最多自动续写 8 次。若连接中断，已收到的内容会保存，并提供“继续生成”和“查看中断原因”。续写会增加 API 调用，用量合并统计。
 
 ## 主要功能
 

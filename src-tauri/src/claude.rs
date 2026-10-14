@@ -11,6 +11,7 @@ use crate::database::{Message, Source};
 
 const MAX_DOCUMENT_CHARS: usize = 16_000;
 const MAX_REQUEST_DOCUMENT_CHARS: usize = 24_000;
+const DEFAULT_OUTPUT_TOKENS:u32=8_192;
 
 pub(crate) fn add_source(sources: &mut Vec<Source>, value: &Value) {
     let Some(url) = value["url"].as_str().or_else(|| value["link"].as_str()) else {
@@ -149,7 +150,7 @@ pub async fn stream_with_progress(
 ) -> Result<(String, Vec<Source>, i64, i64, i64, Vec<Value>, String)> {
     let messages = prepare_messages(&history);
     let budget = thinking_budget(&thinking);
-    let mut body = json!({ "model": model, "max_tokens": 4096 + budget.unwrap_or(0), "stream": true, "messages": messages });
+    let mut body = json!({ "model": model, "max_tokens": DEFAULT_OUTPUT_TOKENS + budget.unwrap_or(0), "stream": true, "messages": messages });
     if !system_prompt.trim().is_empty() {
         body["system"] = json!(system_prompt);
     }
@@ -181,8 +182,16 @@ pub async fn stream_with_progress(
         body.as_object_mut().map(|object| object.remove("thinking"));
         body.as_object_mut()
             .map(|object| object.remove("output_config"));
-        body["max_tokens"] = json!(4096);
+        body["max_tokens"] = json!(DEFAULT_OUTPUT_TOKENS);
         response = request(&client, &base_url, &api_key, &body, &cancelled).await?;
+    }
+    // Older gateways may reject the larger default. Preserve explicit user limits.
+    if response.status().as_u16()==400 && options.get("max_tokens").is_none() && body.get("thinking").is_none(){
+        let error=response.text().await.unwrap_or_default();
+        if error.contains("max_tokens") || error.contains("maximum"){
+            body.as_object_mut().unwrap().remove("thinking");body.as_object_mut().unwrap().remove("output_config");body["max_tokens"]=json!(4096);
+            response=request(&client,&base_url,&api_key,&body,&cancelled).await?;
+        }else{return Err(anyhow!("Anthropic API 返回 400：{}",error))}
     }
     if matches!(response.status().as_u16(), 502 | 503) && !cancelled.load(Ordering::Relaxed) {
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
@@ -215,6 +224,9 @@ pub async fn stream_with_progress(
     let mut search_events = vec![];
     let mut reasoning_content = String::new();
     let (mut input_tokens, mut output_tokens, mut thinking_tokens) = (0, 0, 0);
+    let mut terminal=false;
+    let mut finish_reason=String::new();
+    let mut snapshot_counts=(0,0);
     loop {
         let chunk = tokio::select! {chunk=stream.next()=>chunk,_=tokio::time::sleep(std::time::Duration::from_millis(100))=>{if cancelled.load(Ordering::Relaxed){break;}else{continue;}}};
         if cancelled.load(Ordering::Relaxed) {
@@ -227,11 +239,11 @@ pub async fn stream_with_progress(
         };
         for data in frames {
             if data == "[DONE]" {
+                terminal=true;
                 continue;
             }
-            let Ok(event) = serde_json::from_str::<Value>(&data) else {
-                continue;
-            };
+            let event=serde_json::from_str::<Value>(&data).map_err(|e|anyhow!("无法解析 API 流事件：{}",e))?;
+            if event["type"]=="message_stop"{terminal=true;}
             if event["type"] == "error" {
                 return Err(anyhow!("API 流错误：{}", event["error"]));
             }
@@ -240,11 +252,14 @@ pub async fn stream_with_progress(
                 input_tokens = event["message"]["usage"]["input_tokens"]
                     .as_i64()
                     .unwrap_or(0);
+                on_progress("usage_values",json!({"input":input_tokens}).to_string());
             }
             if event["type"] == "message_delta" { on_progress("usage", json!({"output":if event["usage"]["output_tokens"].is_i64(){"provider"}else{"unavailable"}}).to_string());
+                if let Some(reason)=event["delta"]["stop_reason"].as_str(){finish_reason=reason.into();}
                 output_tokens = event["usage"]["output_tokens"]
                     .as_i64()
                     .unwrap_or(output_tokens);
+                on_progress("usage_values",json!({"input":input_tokens,"output":output_tokens,"thinking":thinking_tokens}).to_string());
             }
             if event["type"] == "content_block_delta" {
                 if let Some(text) = event["delta"]["text"].as_str() {
@@ -265,15 +280,21 @@ pub async fn stream_with_progress(
                 if let Some(thought) = event["delta"]["thinking"].as_str() {
                     reasoning_content.push_str(thought); on_progress("thinking", thought.to_string());
                     thinking_tokens += (thought.chars().count() as i64 + 3) / 4;
+                    on_progress("usage_values",json!({"thinking":thinking_tokens}).to_string());
                 }
             } else if event["type"] == "content_block_start" {
                 collect_sources(&mut sources, &event["content_block"]);
             }
+            if snapshot_counts!=(sources.len(),search_events.len()){
+                snapshot_counts=(sources.len(),search_events.len());on_progress("source_snapshot",json!({"sources":sources,"events":search_events}).to_string());
+            }
         }
-        if done {
+        if done || terminal {
             break;
         }
     }
+    if !cancelled.load(Ordering::Relaxed) && !terminal && finish_reason.is_empty(){return Err(anyhow!("流式连接提前关闭，未收到回答完成标记"))}
+    on_progress("finish",if cancelled.load(Ordering::Relaxed){"cancelled".into()}else if finish_reason.is_empty(){"end_turn".into()}else{finish_reason});
     Ok((
         answer,
         sources,

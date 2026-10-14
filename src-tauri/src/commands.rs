@@ -502,7 +502,7 @@ pub async fn send_message(
     mut references: Vec<crate::database::MessageReference>,
     request_id: Option<String>,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<serde_json::Value, String> {
     if state.generating.swap(true, Ordering::AcqRel) {
         return Err("已有回答正在生成，请先停止或等待完成".into());
     }
@@ -738,6 +738,7 @@ pub async fn send_message(
         return Err("此 Provider 请使用 SearXNG 搜索 Provider".into());
     }
     let mut usage_origin = serde_json::json!({"input":"unavailable","output":"unavailable","thinking":"unavailable"});
+    let mut generation=serde_json::json!({"status":"complete","reason":"","continuations":0});
     let status_window = window.clone();
     let status_id = conversation_id.clone();
     if state.cancelled.load(Ordering::Relaxed){return Err("请求已停止".into())}
@@ -763,6 +764,8 @@ pub async fn send_message(
                 if let Ok(serde_json::Value::Object(fields)) = serde_json::from_str(&delta) {
                     for (key, value) in fields { usage_origin[key] = value; }
                 }
+            } else if phase=="completion" {
+                if let Ok(value)=serde_json::from_str::<serde_json::Value>(&delta){generation=value.clone();let _=status_window.emit("chat-generation",serde_json::json!({"conversationId":status_id,"requestId":request_id,"generation":value}));}
             } else {
                 if phase == "thinking" { usage_origin["thinking"] = serde_json::json!("estimated"); }
                 let _ = status_window.emit("chat-status", serde_json::json!({"conversationId":status_id,"requestId":request_id,"phase":phase,"delta":delta}));
@@ -780,6 +783,7 @@ pub async fn send_message(
             mut search_events,
             reasoning_content,
         )) => {
+            request_identity["generation"]=generation;
             search_events.extend(dedicated_events);
             if !external_sources.is_empty() {
                 sources = external_sources;
@@ -819,13 +823,13 @@ pub async fn send_message(
             );
             let _ = window.emit("chat-request-finished",serde_json::json!({"conversationId":conversation_id,"requestId":request_id}));
             let _ = window.emit("chat-finished", conversation_id);
-            Ok(())
+            Ok(request_identity["generation"].clone())
         }
         Err(_error) if state.cancelled.load(Ordering::Relaxed) => {
             if use_search{record_search_failure(&window,&state,&conversation_id,&request_id,&settings,&content,"搜索已停止")}
             let _ = window.emit("chat-request-finished",serde_json::json!({"conversationId":conversation_id,"requestId":request_id}));
             let _ = window.emit("chat-finished", conversation_id);
-            Ok(())
+            Ok(serde_json::json!({"status":"stopped","reason":"cancelled","continuations":0}))
         }
         Err(error) => {
             if use_search{record_search_failure(&window,&state,&conversation_id,&request_id,&settings,&content,&error.to_string())}

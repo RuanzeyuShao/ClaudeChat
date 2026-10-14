@@ -91,10 +91,14 @@ impl ProviderAdapter {
                 ) {
                     return Err(anyhow!("附加参数不能覆盖 {}", key));
                 }
+                let request_key=if self==Self::OpenAI && key=="max_tokens" {
+                    if options.contains_key("max_completion_tokens"){continue}
+                    "max_completion_tokens"
+                }else{key.as_str()};
                 if value.is_null() {
-                    body.as_object_mut().unwrap().remove(key);
+                    body.as_object_mut().unwrap().remove(request_key);
                 } else {
-                    body[key] = value.clone();
+                    body[request_key] = value.clone();
                 }
             }
         }
@@ -185,6 +189,13 @@ pub async fn stream_with_progress(
     cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
     on_delta: impl FnMut(String) -> Result<()>,
     on_progress: impl FnMut(&str, String),
+) -> Result<crate::openai::Response> {
+    crate::generation::stream(settings,key,history,system,search,cancelled,on_delta,on_progress).await
+}
+
+pub async fn stream_once_with_progress(
+    settings:&crate::commands::Settings,key:String,history:Vec<crate::database::Message>,system:String,search:bool,
+    cancelled:std::sync::Arc<std::sync::atomic::AtomicBool>,on_delta:impl FnMut(String)->Result<()>,on_progress:impl FnMut(&str,String),
 ) -> Result<crate::openai::Response> {
     match ProviderAdapter::new(&settings.provider)? {
         ProviderAdapter::Anthropic => {

@@ -24,6 +24,31 @@ beforeEach(async()=>{
  await useChatStore().initialize()
 })
 afterEach(()=>{useChatStore().dispose();document.body.innerHTML='';vi.clearAllMocks()})
+it('keeps continuation status separate from thinking and ignores completion events from another request',async()=>{
+ const chat=useChatStore();runtime.hold=true;await chat.send('long answer');const requestId=chat.activeRequestId
+ runtime.handlers['chat-status']({payload:{conversationId:'c',requestId,phase:'continuing',delta:'正在自动续写'}})
+ expect(chat.status).toBe('continuing');expect(chat.active!.messages.at(-1)!.reasoningContent).toBeUndefined();expect(chat.loading).toBe(true)
+ runtime.handlers['chat-generation']({payload:{conversationId:'c',requestId:'stale',generation:{status:'interrupted',reason:'interrupted',continuations:1}}});expect(chat.requestCompletion).toBeNull()
+ runtime.handlers['chat-generation']({payload:{conversationId:'c',requestId,generation:{status:'complete',reason:'stop',continuations:1}}});runtime.finish!();await flushPromises()
+ expect(chat.status).toBe('completed');expect(chat.active!.messages.at(-1)!.generation?.continuations).toBe(1);expect(chat.active!.messages[1].content).toBe('original reply')
+})
+it('preserves an interrupted long answer and its completion notice after restart',async()=>{
+ const chat=useChatStore();runtime.hold=true;await chat.send('long question');const requestId=chat.activeRequestId
+ const generation={status:'interrupted' as const,reason:'interrupted',continuations:2,error:'connection reset'}
+ runtime.handlers['chat-generation']({payload:{conversationId:'c',requestId,generation}});runtime.finish!()
+ const last=runtime.messages.at(-1)!;last.content='已经生成的长文本。'.repeat(5000);runtime.origins[last.usageId].generation=generation;runtime.handlers['chat-request-origin']({payload:{id:last.usageId,request:runtime.origins[last.usageId]}})
+ await flushPromises();expect(chat.status).toBe('incomplete');expect(chat.active!.messages.at(-1)!.content).toBe(last.content);expect(chat.active!.messages).toHaveLength(4)
+ chat.dispose();setActivePinia(createPinia());const restarted=useChatStore();await restarted.initialize()
+ const wrapper=mount(MessageItem,{props:{message:restarted.active!.messages.at(-1)!}});expect(wrapper.get('.generation-notice').text()).toContain('生成中断');expect(wrapper.get('.generation-notice button').text()).toBe('继续生成');expect(wrapper.get('.markdown').text()).toBe(last.content);wrapper.unmount()
+})
+it('uses the invoke completion result even if the generation event arrives late',async()=>{
+ const chat=useChatStore()
+ vi.mocked(api.sendMessage).mockImplementationOnce(async(_id,content,_settings,_persist,_attachments,parentId)=>{
+  runtime.messages.push({id:'new-user',role:'user',content,parentId,createdAt:'3'},{id:'partial',role:'assistant',parentId:'new-user',content:'retained partial',createdAt:'4'})
+  return {status:'length',reason:'length',continuations:8}
+ })
+ await chat.send('long question');await flushPromises();expect(chat.status).toBe('incomplete');expect(chat.active!.messages.at(-1)!.generation?.status).toBe('length');expect(chat.active!.messages.at(-1)!.content).toBe('retained partial')
+})
 it('sends Claude → DeepSeek → GPT → Claude in one conversation and preserves every prior node, attachment and Usage',async()=>{
  const chat=useChatStore(),before=structuredClone(runtime.messages),original=structuredClone(runtime.usage[0])
  chat.settings.selectedMessageIds=['u'];chat.settings.selectedAttachmentIds=['file'];chat.references=[{messageId:'a',text:'reference'}]

@@ -21,6 +21,21 @@ fn legacy() -> Database {
 }
 
 #[test]
+fn a_long_partial_answer_and_its_original_model_usage_survive_database_reopen(){
+    let db=legacy();migrate_v3(&db.conn).unwrap();
+    let original=serde_json::to_value(db.messages("c").unwrap()).unwrap();let content="已经保存的长文本。".repeat(10000);
+    let mut usage=db.usage().unwrap().remove(0);usage.id="long-partial".into();usage.model="request-model".into();usage.input_tokens=14;usage.output_tokens=8;
+    let origin=serde_json::json!({"provider":"anthropic-compatible","profileId":"p","model":"request-model","generation":{"status":"interrupted","reason":"interrupted","continuations":2,"error":"connection reset"}});
+    db.save_response_with_origin("c",&content,&vec![],&serde_json::json!({"status":"off"}),&usage,"saved reasoning",Some(&origin)).unwrap();
+    let path=std::env::temp_dir().join(format!("claudechat-long-{}.db",uuid::Uuid::new_v4()));
+    db.conn.execute("VACUUM INTO ?",[path.to_str().unwrap()]).unwrap();
+    let reopened=Database{conn:Connection::open(&path).unwrap()};let messages=reopened.active_messages("c").unwrap();
+    assert_eq!(serde_json::to_value(&messages[..2]).unwrap(),original);assert_eq!(messages[2].content,content);assert_eq!(messages[2].reasoning_content,"saved reasoning");assert_eq!(messages[2].usage_id.as_deref(),Some("long-partial"));
+    assert_eq!(reopened.extension("v4:requestOrigins").unwrap()["long-partial"],origin);let rows=reopened.usage().unwrap();assert_eq!(rows.len(),2);assert_eq!(rows.iter().find(|r|r.id=="long-partial").unwrap().model,"request-model");
+    drop(reopened);std::fs::remove_file(path).unwrap();
+}
+
+#[test]
 fn preset_settings_and_prompt_restore_together_and_rollback_on_failure(){
     let db=legacy();migrate_v3(&db.conn).unwrap();
     let mut settings=crate::connection::read(&db).unwrap();settings.model="custom-model".into();settings.thinking="high".into();settings.search_mode="off".into();settings.web_search=false;

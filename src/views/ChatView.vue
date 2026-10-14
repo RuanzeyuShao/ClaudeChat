@@ -42,7 +42,7 @@ const totals=computed(()=>{
  const sum=(items:typeof chat.usage)=>({tokens:items.reduce((n,u)=>n+u.inputTokens+u.outputTokens,0),cost:items.reduce((n,u)=>n+u.estimatedCost,0)})
  return {chat:sum(chat.usage.filter(u=>u.conversationId===chat.activeId)),today:sum(chat.usage.filter(u=>new Date(u.createdAt)>=day)),month:sum(chat.usage.filter(u=>new Date(u.createdAt)>=month))}
 })
-const statusLabels={idle:'',connecting:'连接中',searching:'正在搜索',thinking:'正在思考',generating:'正在生成',completed:'已完成',stopped:'已停止',failed:'请求失败'}
+const statusLabels={idle:'',connecting:'连接中',searching:'正在搜索',thinking:'正在思考',generating:'正在生成',completed:'已完成',stopped:'已停止',failed:'请求失败',continuing:'正在自动续写',incomplete:'回答未完成'}
 const dragging=ref(false)
 let dragDepth=0, observer:ResizeObserver|undefined, scrollObserver:ResizeObserver|undefined, unlisten:(()=>void)|undefined, disposed=false, scrollFrame=0
 let jumping=false,lastScrollTop=0,lastClientHeight=0,lastScrollHeight=0,touchY:number|undefined,jumpTimer:ReturnType<typeof setTimeout>|undefined

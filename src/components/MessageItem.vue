@@ -19,6 +19,12 @@ const emit=defineEmits<{regenerate:[];preview:[attachment:Attachment];diff:[atta
 const chat=useChatStore(), ui=useUiStore(), article=ref<HTMLElement>(), copied=ref(false), editing=ref(false), editedText=ref(''), usageOpen=ref(false), chooseCode=ref(false)
 
 const origin=computed(()=>props.message.usageId?chat.requestOrigins[props.message.usageId]:chat.pendingOrigins[props.message.id])
+const generation=computed(()=>props.message.generation || origin.value?.generation)
+const generationText=computed(()=>{
+ const info=generation.value;if(!info)return ''
+ return ({complete:`已自动续写 ${info.continuations} 次，回答已完成`,length:info.continuations>=8?'已达到自动续写上限，已生成内容已保存。':'输出预算已耗尽，未获得新的正文；请调整输出预算后继续。',interrupted:'生成中断，已生成内容已保存。',stopped:'已停止生成，已生成内容已保存。',context_limit:'已达到上下文上限，请减少历史上下文后继续。',paused:'服务商暂停了回答，已生成内容已保存。',blocked:'服务商提前结束了回答，已生成内容已保存。'})[info.status]
+})
+const canContinue=computed(()=>generation.value && ['length','interrupted','stopped','context_limit','paused'].includes(generation.value.status))
 async function copy(){try{await navigator.clipboard.writeText(props.message.content);copied.value=true;ui.notify('消息已复制');setTimeout(()=>copied.value=false,1400)}catch(e){ui.failure(e)}}
 function edit(){editedText.value=props.message.content;editing.value=true}
 async function resend(){if(!editedText.value.trim())return;try{if(await chat.editResend(props.message,editedText.value))editing.value=false}catch(e){ui.failure(e)}}
@@ -41,6 +47,7 @@ function reviewCode(){const files=props.codeAttachments || [];if(!proposal.value
    <div v-else-if="message.pending" class="thinking" aria-hidden="true"><i/><i/><i/></div>
    <SourceList v-if="message.sources?.length" :key="message.id" :sources="message.sources"/>
   </div>
+  <div v-if="message.role==='assistant' && !message.pending && generation && (generation.status!=='complete' || generation.continuations>0)" class="generation-notice" role="status"><span>{{ generationText }}</span><small v-if="generation.status!=='complete' && generation.continuations">已自动续写 {{ generation.continuations }} 次</small><button v-if="canContinue" class="secondary" :disabled="chat.loading || chat.profileBusy" @click="chat.continueReply(message)">继续生成</button><details v-if="generation.error"><summary>查看中断原因</summary><p>{{ generation.error }}</p></details></div>
   <div v-if="message.content && !message.pending" class="message-toolbar">
    <div class="message-tools"><button class="icon-button" :aria-label="copied?'已复制':'复制消息'" title="复制" @click="copy"><component :is="copied?Check:Copy" :size="16"/></button><button v-if="canRegenerate" class="icon-button" aria-label="重新生成" title="重新生成" @click="emit('regenerate')"><RotateCcw :size="16"/></button><button class="icon-button" aria-label="引用消息或选中文字" title="引用（支持选中文字）" :disabled="chat.loading" @click="quote"><Quote :size="16"/></button><ActionMenu label="消息更多操作"><button v-if="message.role==='user'" role="menuitem" :disabled="chat.loading" @click="edit"><Pencil :size="16"/>编辑并重发</button><button v-if="message.role==='assistant'" role="menuitem" :disabled="chat.loading" @click="chat.continueReply(message)"><ArrowRight :size="16"/>继续生成</button><button v-if="message.searchTrace && message.searchTrace.status!=='off'" role="menuitem" :disabled="chat.loading" @click="chat.reSearch(message)"><Globe :size="16"/>重新搜索</button><button v-if="proposal && codeAttachments?.length" role="menuitem" @click="reviewCode"><GitCompareArrows :size="16"/>查看代码 Diff</button><button v-if="usage" role="menuitem" @click="usageOpen=!usageOpen"><ChartNoAxesCombined :size="16"/>{{ usageOpen?'收起':'查看' }}用量</button></ActionMenu></div>
    <div v-if="versions.length>1" class="message-versions"><button class="icon-button" aria-label="上一个回答版本" title="上一个版本" :disabled="chat.loading || versionIndex<=0" @click="chat.selectVersion(message,-1)"><ChevronLeft :size="15"/></button><span>{{ versionIndex+1 }} / {{ versions.length }}</span><button class="icon-button" aria-label="下一个回答版本" title="下一个版本" :disabled="chat.loading || versionIndex>=versions.length-1" @click="chat.selectVersion(message,1)"><ChevronRight :size="15"/></button></div>
@@ -49,3 +56,6 @@ function reviewCode(){const files=props.codeAttachments || [];if(!proposal.value
  </article>
  <BaseModal v-if="chooseCode" title="选择要比较的代码文件" @close="chooseCode=false"><div class="preset-list"><button v-for="file in codeAttachments" :key="file.id" @click="emit('diff',file,proposal);chooseCode=false"><FileCode2 :size="16"/>{{ file.name }}</button></div></BaseModal>
 </template>
+<style scoped>
+.generation-notice{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:16px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--panel);color:var(--muted);font-size:12px;line-height:1.7;overflow-wrap:anywhere}.generation-notice span{flex:1;min-width:160px}.generation-notice small{font-size:11px}.generation-notice button{flex:none;min-height:32px}.generation-notice details{flex-basis:100%;min-width:0}.generation-notice details p{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0 0}
+</style>

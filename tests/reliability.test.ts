@@ -97,6 +97,15 @@ it('renders distinct search outcomes and an actionable failure message',async()=
  }
  await wrapper.setProps({message:{...message,searchTrace:{...message.searchTrace!,status:'failed',error:'搜索服务不可用'}}});expect(wrapper.get('.search-trace .error').text()).toBe('搜索服务不可用')
 })
+it('shows a saved incomplete answer, continues from it, and avoids offering continuation for filtered output',async()=>{
+ const chat=useChatStore();const message=chat.active!.messages[3];message.generation={status:'length',reason:'length',continuations:8}
+ const wrapper=mount(MessageItem,{props:{message}});wrappers.push(wrapper)
+ const continuation=vi.spyOn(chat,'continueReply').mockResolvedValue(true)
+ expect(wrapper.get('.generation-notice').text()).toContain('续写上限');await wrapper.get('.generation-notice button').trigger('click');expect(continuation).toHaveBeenCalledWith(message)
+ chat.loading=true;await flushPromises();expect(wrapper.get('.generation-notice button').attributes('disabled')).toBeDefined()
+ await wrapper.setProps({message:{...message,generation:{status:'blocked',reason:'content_filter',continuations:0}}});expect(wrapper.find('.generation-notice button').exists()).toBe(false)
+ await wrapper.setProps({message:{...message,generation:{status:'complete',reason:'stop',continuations:2}}});expect(wrapper.get('.generation-notice').text()).toContain('回答已完成')
+})
 
 for(const trigger of ['timer','focus','reopen','usage','visibility'] as const){
  it(`updates retained Dashboard across midnight through ${trigger}, preserving filters`,async()=>{

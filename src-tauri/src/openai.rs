@@ -66,6 +66,8 @@ pub async fn stream_with_progress(
     let mut sources = vec![];
     let mut events = vec![];
     let (mut input, mut output, mut thinking_tokens) = (0, 0, 0);
+    let mut finish_reason=String::new();
+    let mut snapshot_counts=(0,0);
     // Only the provider's built-in web search is eligible for a tool round trip.
     for round in 0..5 {
         if cancelled.load(Ordering::Relaxed) {
@@ -108,6 +110,8 @@ pub async fn stream_with_progress(
         let (mut round_input, mut round_output, mut round_thinking) = (0, 0, 0);
         let (mut round_answer, mut round_reasoning) = (String::new(), String::new());
         let mut done = false;
+        let mut terminal=false;
+        finish_reason.clear();
         loop {
             let chunk = tokio::select! {chunk=stream.next()=>chunk,_=tokio::time::sleep(std::time::Duration::from_millis(100))=>{if cancelled.load(Ordering::Relaxed){break;}else{continue;}}};
             if cancelled.load(Ordering::Relaxed) {
@@ -123,6 +127,7 @@ pub async fn stream_with_progress(
             for data in frames {
                 if data == "[DONE]" {
                     done = true;
+                    terminal=true;
                     continue;
                 }
                 let event: Value = serde_json::from_str(&data)
@@ -131,6 +136,7 @@ pub async fn stream_with_progress(
                     return Err(anyhow!("API 流错误：{}", event["error"]));
                 }
                 let delta = &event["choices"][0]["delta"];
+                if let Some(reason)=event["choices"][0]["finish_reason"].as_str(){finish_reason=reason.into();}
                 if let Some(text) = delta["content"].as_str() {
                     round_answer.push_str(text);
                     answer.push_str(text);
@@ -140,10 +146,14 @@ pub async fn stream_with_progress(
                     round_reasoning.push_str(text);
                     reasoning.push_str(text); on_progress("thinking", text.into());
                     round_thinking += (text.chars().count() as i64 + 3) / 4;
+                    on_progress("usage_values",json!({"thinking":thinking_tokens+round_thinking}).to_string());
                 }
                 crate::claude::collect_sources(&mut sources, &event);
                 crate::claude::collect_sources(&mut sources, delta);
                 crate::claude::collect_search_events(&mut events, &event);
+                if snapshot_counts!=(sources.len(),events.len()){
+                    snapshot_counts=(sources.len(),events.len());on_progress("source_snapshot",json!({"sources":sources,"events":events}).to_string());
+                }
                 if let Some(calls) = delta["tool_calls"].as_array() { if !calls.is_empty() { on_progress("searching", String::new()); }
                     for call in calls {
                         let index = call["index"].as_u64().unwrap_or(0) as usize;
@@ -177,12 +187,14 @@ pub async fn stream_with_progress(
                     round_thinking = usage["completion_tokens_details"]["reasoning_tokens"]
                         .as_i64()
                         .unwrap_or(round_thinking);
+                    on_progress("usage_values",json!({"input":input+round_input,"output":output+round_output,"thinking":thinking_tokens+round_thinking}).to_string());
                 }
             }
             if done {
                 break;
             }
         }
+        if !cancelled.load(Ordering::Relaxed) && !terminal && finish_reason.is_empty(){return Err(anyhow!("流式连接提前关闭，未收到回答完成标记"))}
         input += round_input;
         output += round_output;
         thinking_tokens += round_thinking;
@@ -210,6 +222,7 @@ pub async fn stream_with_progress(
             messages.push(json!({"role":"tool","tool_call_id":call["id"],"name":"$web_search","content":arguments}));
         }
     }
+    on_progress("finish",if cancelled.load(Ordering::Relaxed){"cancelled".into()}else if finish_reason.is_empty(){"stop".into()}else{finish_reason});
     Ok((
         answer,
         sources,
