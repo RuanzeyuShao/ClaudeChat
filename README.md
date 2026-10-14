@@ -3,7 +3,8 @@
   <h1>ClaudeChat</h1>
   <p>自由配置模型、本地保存对话的 Windows 桌面聊天客户端</p>
   <p>
-    <a href="https://github.com/RuanzeyuShao/ClaudeChat/raw/refs/heads/v0.1.5/installers/v0.1.5/ClaudeChat_0.1.5_x64-setup.exe"><strong>下载 Windows x64 · v0.1.5</strong></a>
+    <a href="https://github.com/RuanzeyuShao/ClaudeChat/releases/download/v0.1.5/ClaudeChat_0.1.5_x64-setup.exe"><strong>下载 Windows x64 · v0.1.5</strong></a>
+    · <a href="https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.5">Release / Assets</a>
     · <a href="docs/v0.1.5-test-report.md">v0.1.5 验证报告</a>
     · <a href="https://github.com/RuanzeyuShao/ClaudeChat/tree/v0.1.5">v0.1.5 源码</a>
   </p>
