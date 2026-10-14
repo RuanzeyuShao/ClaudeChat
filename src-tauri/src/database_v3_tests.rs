@@ -1,5 +1,22 @@
 use super::*;
 
+#[test]
+fn v015_preferences_survive_database_reopen_and_preserve_legacy_history() {
+    let db=legacy();migrate_v3(&db.conn).unwrap();
+    let original=serde_json::to_value(db.active_messages("c").unwrap()).unwrap();
+    assert!(db.extension("v5:fontSize").unwrap().is_null());
+    assert!(db.extension("v5:blankConversation").unwrap().is_null());
+    db.set_setting("v5:fontSize","20").unwrap();
+    db.set_setting("v5:blankConversation","\"blank-id\"").unwrap();
+    let path=std::env::temp_dir().join(format!("claudechat-v015-{}.db",uuid::Uuid::new_v4()));
+    db.conn.execute("VACUUM INTO ?",[path.to_str().unwrap()]).unwrap();
+    let reopened=Database{conn:Connection::open(&path).unwrap()};
+    assert_eq!(reopened.extension("v5:fontSize").unwrap(),serde_json::json!(20));
+    assert_eq!(reopened.extension("v5:blankConversation").unwrap(),serde_json::json!("blank-id"));
+    assert_eq!(serde_json::to_value(reopened.active_messages("c").unwrap()).unwrap(),original);
+    drop(reopened);std::fs::remove_file(path).unwrap();
+}
+
 fn legacy() -> Database {
     let conn = Connection::open_in_memory().unwrap();
     conn.execute_batch("CREATE TABLE conversations(id TEXT PRIMARY KEY,title TEXT,model TEXT,created_at TEXT,updated_at TEXT,system_prompt TEXT DEFAULT '');

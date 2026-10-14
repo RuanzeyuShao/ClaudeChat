@@ -918,7 +918,7 @@ pub fn save_extension(
         .map_err(|e| e.to_string())
 }
 fn valid_extension_key(key: &str) -> bool {
-    key.starts_with("v3:") || matches!(key,"v4:drafts" | "v4:sendMode" | "v4:usageOrigins" | "v4:requestOrigins" | "v4:lastConversation") || key.starts_with("v4:conversationConnection:")
+    key.starts_with("v3:") || matches!(key,"v4:drafts" | "v4:sendMode" | "v4:usageOrigins" | "v4:requestOrigins" | "v4:lastConversation" | "v5:fontSize" | "v5:blankConversation") || key.starts_with("v4:conversationConnection:")
 }
 #[tauri::command]
 pub async fn detect_capabilities(
@@ -1049,8 +1049,16 @@ mod experience_tests {
         filter_context_selection(&mut history,&settings);assert_eq!(history.len(),1);assert_eq!(history[0].id,"current");assert_eq!(history[0].attachments.len(),2);
     }
     #[test]
-    fn extension_namespace_preserves_v3_and_limits_v4() {
-        for key in ["v3:presets","v3:organization","v4:drafts","v4:sendMode","v4:usageOrigins"] { assert!(super::valid_extension_key(key)); }
-        for key in ["api_key","profile_id","v4:apiKey","v4:unrecognized"] { assert!(!super::valid_extension_key(key)); }
+    fn extension_namespace_preserves_v3_and_limits_v4_and_v5() {
+        for key in ["v3:presets","v3:organization","v4:drafts","v4:sendMode","v4:usageOrigins","v5:fontSize","v5:blankConversation"] { assert!(super::valid_extension_key(key)); }
+        for key in ["api_key","profile_id","v4:apiKey","v4:unrecognized","v5:apiKey","v5:unrecognized"] { assert!(!super::valid_extension_key(key)); }
+    }
+    #[test]
+    fn frontend_extension_keys_are_accepted_by_native_commands() {
+        let source=include_str!("../../src/stores/chat.ts");
+        let keys:Vec<_>=source.split('\'').filter(|token|token.starts_with("v3:") || token.starts_with("v4:") || token.starts_with("v5:")).collect();
+        assert!(keys.contains(&"v5:fontSize"));
+        assert!(keys.contains(&"v5:blankConversation"));
+        for key in keys { assert!(super::valid_extension_key(key),"frontend extension key rejected: {key}"); }
     }
 }
