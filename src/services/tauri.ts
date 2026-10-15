@@ -1,4 +1,5 @@
 import type { Attachment, ConnectionResult, Conversation, Message, Settings, ApiProfile, Usage, ModelPrice, MessageReference, Capabilities, ProviderModel, GenerationInfo } from '../types'
+import type { Appearance } from '../themes/themeManager'
 
 const isTauri = '__TAURI_INTERNALS__' in window
 async function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
@@ -9,6 +10,7 @@ async function invoke<T>(command: string, args?: Record<string, unknown>): Promi
 
 export const api = {
   isTauri,
+  saveAppearance:(appearance:Appearance)=>invoke<Appearance>('save_appearance',{...appearance}),
   openLinkPreview:(url:string)=>invoke<void>('open_link_preview',{url}),
   getRemoteImage:(url:string)=>invoke<{dataUrl:string;resolvedUrl:string}>('get_remote_image',{url}),
   getProviderModels: (settings: Settings) => invoke<ProviderModel[]>('get_provider_models', {settings}),

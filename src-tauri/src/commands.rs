@@ -31,6 +31,8 @@ pub struct Settings {
     pub thinking: String,
     pub web_search: bool,
     pub theme: String,
+    #[serde(default = "crate::connection::default_color_theme")]
+    pub color_theme: String,
     #[serde(default)]
     pub system_prompt: String,
     #[serde(default)]
@@ -251,6 +253,11 @@ pub fn select_conversation(conversation_id:String,state:State<AppState>)->Result
     let _guard=GenerationGuard(state.generating.clone());
     let db=state.db.lock().map_err(|e|e.to_string())?;
     crate::connection::restore(&db,&conversation_id).map_err(|e|e.to_string())
+}
+#[tauri::command]
+pub fn save_appearance(theme:String,color_theme:String,state:State<AppState>)->Result<crate::connection::Appearance,String>{
+    let db=state.db.lock().map_err(|e|e.to_string())?;
+    crate::connection::save_appearance(&db,theme,color_theme).map_err(|e|e.to_string())
 }
 #[tauri::command]
 pub fn save_settings(

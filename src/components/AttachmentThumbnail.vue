@@ -15,4 +15,4 @@ function prepare(){version++;observer?.disconnect();loading.value=false;error.va
 watch(()=>[props.attachment.id,props.attachment.data],prepare,{flush:'post'});onMounted(prepare);onUnmounted(()=>{version++;observer?.disconnect()})
 </script>
 <template><span ref="root" class="attachment-thumbnail" :title="error?'缩略图未加载，点击附件可重新查看':attachment.name"><img v-if="source && !error" :src="source" :alt="attachment.name" @error="error=true"/><LoaderCircle v-else-if="loading" :size="21" class="spin"/><Image v-else :size="23"/></span></template>
-<style scoped>.attachment-thumbnail{display:grid;place-items:center;flex:none;width:36px;height:36px;color:var(--accent)}.attachment-thumbnail img{width:36px;height:36px;object-fit:cover;border-radius:6px}</style>
+<style scoped>.attachment-thumbnail{display:grid;place-items:center;flex:none;width:36px;height:36px;color:var(--accent-ink)}.attachment-thumbnail img{width:36px;height:36px;object-fit:cover;border-radius:6px}</style>

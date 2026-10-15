@@ -6,9 +6,11 @@ import { useUiStore } from './ui'
 import { friendlyError } from '../utils/experience'
 import { snapshotSettings, identity, connectionChanged } from '../utils/connection'
 import { validateSearch } from '../utils/searchPolicy'
+import { themeManager, normalizeAppearance, type Appearance } from '../themes/themeManager'
 import type { Attachment, Conversation, Message, Settings, ThemeMode, ApiProfile, Usage, Preset, Organization, MessageReference, RequestIdentity, GenerationInfo } from '../types'
 
-const defaultSettings: Settings = { apiKey: '', baseUrl: '', provider: 'anthropic-compatible', model: '', thinking: 'medium', webSearch: true, theme: 'system', systemPrompt: '', profileId: '', searchMode: 'auto', searchProvider: 'claude', searchBaseUrl: '', contextMode: 'full', recentTurns: 10, selectedMessageIds: [], selectedAttachmentIds: [] }
+const defaultSettings: Settings = { apiKey: '', baseUrl: '', provider: 'anthropic-compatible', model: '', thinking: 'medium', webSearch: true, theme: 'system', colorTheme: 'emerald', systemPrompt: '', profileId: '', searchMode: 'auto', searchProvider: 'claude', searchBaseUrl: '', contextMode: 'full', recentTurns: 10, selectedMessageIds: [], selectedAttachmentIds: [] }
+const appearanceWrites=new WeakMap<object,Promise<unknown>>()
 const listeners: (() => void)[] = []
 let frame = 0
 const deltas = new Map<string, string>()
@@ -16,18 +18,17 @@ export type RequestStatus = 'idle' | 'connecting' | 'searching' | 'thinking' | '
 interface ReplyBranch { parentId: string | null; rollbackLeaf: string | null; previousMessages?:Message[] }
 interface FailedReply {conversationId:string;content:string;attachments:Attachment[];persistUser:boolean;branch:ReplyBranch}
 export const useChatStore = defineStore('chat', {
-  state: () => ({ conversations: [] as Conversation[], activeId: '' as string, blankConversationId: '', fontSize: 14, settings: { ...defaultSettings }, profiles: [] as ApiProfile[], usage: [] as Usage[], loading: false, error: '', initialized: false, profileBusy: false, activeRequestId:'',requestCompletion:null as GenerationInfo | null,failedReply:null as FailedReply | null,requestSettings:null as Settings | null,requestOrigins:{} as Record<string,RequestIdentity>,pendingOrigins:{} as Record<string,RequestIdentity>, usageOrigins: {} as Record<string,{input:string;output:string;thinking:string}>, status: 'idle' as RequestStatus, stopping: false, sendMode: 'enter' as 'enter' | 'ctrl-enter', drafts: {} as Record<string, { text: string; attachments: Attachment[] }>, providerPreferences: {} as Partial<Record<ChatProviderId, ProviderPreference>>, trees: {} as Record<string, Message[]>, presets: [] as Preset[], organization: {} as Record<string, Organization>, references: [] as MessageReference[] }),
+  state: () => ({ conversations: [] as Conversation[], activeId: '' as string, blankConversationId: '', fontSize: 14, appearanceBusy:false, appearanceRevision:0, savedAppearance:null as Appearance|null, settings: { ...defaultSettings }, profiles: [] as ApiProfile[], usage: [] as Usage[], loading: false, error: '', initialized: false, profileBusy: false, activeRequestId:'',requestCompletion:null as GenerationInfo | null,failedReply:null as FailedReply | null,requestSettings:null as Settings | null,requestOrigins:{} as Record<string,RequestIdentity>,pendingOrigins:{} as Record<string,RequestIdentity>, usageOrigins: {} as Record<string,{input:string;output:string;thinking:string}>, status: 'idle' as RequestStatus, stopping: false, sendMode: 'enter' as 'enter' | 'ctrl-enter', drafts: {} as Record<string, { text: string; attachments: Attachment[] }>, providerPreferences: {} as Partial<Record<ChatProviderId, ProviderPreference>>, trees: {} as Record<string, Message[]>, presets: [] as Preset[], organization: {} as Record<string, Organization>, references: [] as MessageReference[] }),
   getters: { active(state): Conversation | undefined { return state.conversations.find(x => x.id === state.activeId) } },
   actions: {
     async initialize() {
       if (this.initialized) return
       this.initialized = true
-      const media=window.matchMedia('(prefers-color-scheme: dark)')
-      const onTheme=()=>{if(this.settings.theme==='system')this.applyTheme('system')}
-      media.addEventListener('change',onTheme);listeners.push(()=>media.removeEventListener('change',onTheme))
+      themeManager.start();listeners.push(()=>themeManager.stop())
       await this.loadFontSize()
-      if (!api.isTauri) {  this.applyTheme(this.settings.theme); await this.newConversation(); return }
+      if (!api.isTauri) {Object.assign(this.settings,themeManager.cached());this.savedAppearance=normalizeAppearance(this.settings);this.applyTheme(this.settings.theme);await this.newConversation();return}
       this.settings = { ...defaultSettings, ...await api.getSettings() }
+      Object.assign(this.settings,normalizeAppearance(this.settings));this.savedAppearance=normalizeAppearance(this.settings)
       this.drafts = await api.getExtension<typeof this.drafts>('v4:drafts') || {}
       this.sendMode = await api.getExtension<typeof this.sendMode>('v4:sendMode') || 'enter'
       this.providerPreferences=await api.getExtension<Partial<Record<ChatProviderId,ProviderPreference>>>('v3:chatProviders') || {}; this.presets = await api.getExtension<Preset[]>('v3:presets') || []; this.organization = await api.getExtension<Record<string, Organization>>('v3:organization') || {}; this.profiles = await api.getProfiles(); this.usage = await api.getUsage()
@@ -134,7 +135,8 @@ export const useChatStore = defineStore('chat', {
       this.acceptSettings(saved)
     },
     acceptSettings(settings:Settings){
-      this.settings={...settings,apiKey:''};this.applyTheme(settings.theme)
+      const appearance=this.appearanceBusy?normalizeAppearance(this.settings):normalizeAppearance({...settings,colorTheme:settings.colorTheme ?? this.settings.colorTheme})
+      this.settings={...settings,...appearance,apiKey:''};this.applyTheme(this.settings.theme)
       const profile=this.profiles.find(p=>p.id===settings.profileId)
       if(profile){profile.provider=settings.provider;profile.baseUrl=settings.baseUrl;profile.requestOptions=settings.requestOptions}
     },
@@ -203,9 +205,21 @@ export const useChatStore = defineStore('chat', {
       else localStorage.setItem('claudechat.fontSize',String(Math.round(value)))
       this.applyFontSize(value)
     },
-    applyTheme(theme: ThemeMode) {
-      const dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-      document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+    applyTheme(theme: ThemeMode) {themeManager.apply({theme,colorTheme:this.settings.colorTheme})},
+    async setAppearance(theme:ThemeMode,colorTheme:Settings['colorTheme']) {
+      if(!this.savedAppearance)this.savedAppearance=normalizeAppearance(this.settings)
+      const value=normalizeAppearance({theme,colorTheme}),revision=++this.appearanceRevision
+      Object.assign(this.settings,value);this.appearanceBusy=true;this.applyTheme(value.theme)
+      const previous=appearanceWrites.get(this) || Promise.resolve()
+      const request=previous.catch(()=>{}).then(()=>api.isTauri?api.saveAppearance(value):value)
+      appearanceWrites.set(this,request)
+      try {
+        const saved=normalizeAppearance(await request);this.savedAppearance=saved;themeManager.cache(saved)
+        if(revision===this.appearanceRevision){Object.assign(this.settings,saved);this.applyTheme(saved.theme)}
+      }catch(error){
+        if(revision===this.appearanceRevision){Object.assign(this.settings,this.savedAppearance);this.applyTheme(this.settings.theme)}
+        throw error
+      }finally{if(revision===this.appearanceRevision)this.appearanceBusy=false}
     },
     validateSend() {
       if(api.isTauri && (!this.settings.baseUrl || !this.settings.model))throw new Error('请先在设置中添加并启用 API 配置')

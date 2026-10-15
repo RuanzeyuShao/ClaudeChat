@@ -5,6 +5,18 @@ use serde_json::{json, Value};
 use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
 
 pub const FIELDS: &[&str] = &["baseUrl","provider","profileId","model","thinking","webSearch","searchMode","searchProvider","searchBaseUrl","searchModel","requestOptions"];
+pub const COLOR_THEMES:&[&str]=&["emerald","ocean","violet","coral","sakura","forest","amber","graphite"];
+pub fn default_color_theme()->String{"emerald".into()}
+fn color_theme(value:String)->String{if COLOR_THEMES.contains(&value.as_str()){value}else{default_color_theme()}}
+#[derive(Clone,serde::Serialize)]
+#[serde(rename_all="camelCase")]
+pub struct Appearance {pub theme:String,pub color_theme:String}
+pub fn save_appearance(db:&Database,theme:String,color_theme:String)->Result<Appearance>{
+    anyhow::ensure!(matches!(theme.as_str(),"light"|"dark"|"system"),"外观模式无效");
+    anyhow::ensure!(COLOR_THEMES.contains(&color_theme.as_str()),"颜色主题无效");
+    db.save_settings_and_prompt_atomic(&[("theme",theme.as_str()),("color_theme",color_theme.as_str())],None,None)?;
+    Ok(Appearance{theme,color_theme})
+}
 
 pub fn selection(settings: &Settings) -> Value {
     let value=serde_json::to_value(settings).expect("Settings is serializable");
@@ -20,7 +32,7 @@ pub fn read(db:&Database)->Result<Settings> {
     let profile_id=saved("profile_id","")?;
     Ok(Settings {
         api_key:String::new(),base_url:saved("base_url","")?,provider:saved("provider","anthropic-compatible")?,model:saved("model","")?,
-        thinking:saved("thinking","medium")?,web_search:saved("web_search","true")?=="true",theme:saved("theme","system")?,
+        thinking:saved("thinking","medium")?,web_search:saved("web_search","true")?=="true",theme:saved("theme","system")?,color_theme:color_theme(saved("color_theme","emerald")?),
         system_prompt:saved("system_prompt","")?,profile_id:profile_id.clone(),search_mode:saved("search_mode","auto")?,
         search_provider:saved("search_provider","claude")?,search_base_url:saved("search_base_url","")?,search_model:saved("search_model","")?,
         context_mode:saved("context_mode","full")?,recent_turns:saved("recent_turns","10")?.parse().unwrap_or(10),
@@ -28,6 +40,7 @@ pub fn read(db:&Database)->Result<Settings> {
     })
 }
 pub fn resolve(db:&Database,mut settings:Settings)->Result<Settings> {
+    settings.color_theme=color_theme(settings.color_theme);
     if !settings.profile_id.is_empty() {
         let profile=db.profiles()?.into_iter().find(|p|p.id==settings.profile_id).ok_or_else(||anyhow!("此 API 配置已被删除，请重新选择"))?;
         settings.base_url=profile.base_url;
@@ -53,7 +66,7 @@ pub fn persist_with_prompt(db:&Database,settings:&Settings,id:Option<&str>,promp
     let mut values=vec![
         ("base_url",settings.base_url.as_str()),("provider",settings.provider.as_str()),("profile_id",settings.profile_id.as_str()),
         ("model",settings.model.as_str()),("thinking",settings.thinking.as_str()),("web_search",if settings.web_search{"true"}else{"false"}),
-        ("theme",settings.theme.as_str()),("system_prompt",settings.system_prompt.as_str()),("search_mode",settings.search_mode.as_str()),
+        ("theme",settings.theme.as_str()),("color_theme",settings.color_theme.as_str()),("system_prompt",settings.system_prompt.as_str()),("search_mode",settings.search_mode.as_str()),
         ("search_provider",settings.search_provider.as_str()),("search_base_url",settings.search_base_url.as_str()),("search_model",settings.search_model.as_str()),
         ("context_mode",settings.context_mode.as_str()),("recent_turns",recent.as_str()),
     ];

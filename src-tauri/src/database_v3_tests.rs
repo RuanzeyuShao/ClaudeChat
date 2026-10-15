@@ -1,6 +1,36 @@
 use super::*;
 
 #[test]
+fn eight_palette_modes_restore_across_history_selection_and_database_reopen(){
+    let db=legacy();migrate_v3(&db.conn).unwrap();
+    let before=serde_json::to_value(db.active_messages("c").unwrap()).unwrap();
+    assert_eq!(crate::connection::read(&db).unwrap().color_theme,"emerald");
+    for palette in crate::connection::COLOR_THEMES {for mode in ["light","dark","system"]{
+        crate::connection::save_appearance(&db,mode.into(),palette.to_string()).unwrap();
+        let selected=crate::connection::restore(&db,"c").unwrap();assert_eq!(selected.theme,mode);assert_eq!(selected.color_theme,*palette);
+        let identity=crate::connection::selection(&selected);assert!(identity.get("theme").is_none());assert!(identity.get("colorTheme").is_none());
+    }}
+    let path=std::env::temp_dir().join(format!("claudechat-themes-{}.db",uuid::Uuid::new_v4()));db.conn.execute("VACUUM INTO ?",[path.to_str().unwrap()]).unwrap();
+    let reopened=Database{conn:Connection::open(&path).unwrap()};let settings=crate::connection::read(&reopened).unwrap();assert_eq!(settings.theme,"system");assert_eq!(settings.color_theme,"graphite");assert_eq!(serde_json::to_value(reopened.active_messages("c").unwrap()).unwrap(),before);
+    drop(reopened);std::fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn appearance_save_is_atomic_validated_and_keeps_existing_settings(){
+    let db=legacy();migrate_v3(&db.conn).unwrap();crate::connection::save_appearance(&db,"dark".into(),"ocean".into()).unwrap();
+    assert!(crate::connection::save_appearance(&db,"bad".into(),"emerald".into()).is_err());assert!(crate::connection::save_appearance(&db,"light".into(),"unknown".into()).is_err());
+    db.conn.execute_batch("CREATE TRIGGER deny_color BEFORE INSERT ON settings WHEN NEW.key='color_theme' BEGIN SELECT RAISE(ABORT,'disk full'); END;").unwrap();
+    assert!(crate::connection::save_appearance(&db,"light".into(),"coral".into()).is_err());assert_eq!(db.setting("theme").unwrap().as_deref(),Some("dark"));assert_eq!(db.setting("color_theme").unwrap().as_deref(),Some("ocean"));assert_eq!(db.system_prompt("c").unwrap(),"旧 Prompt");
+}
+
+#[test]
+fn frontend_palettes_match_native_validation_and_unknown_legacy_palette_falls_back(){
+    let source=include_str!("../../src/themes/themePresets.ts");
+    for id in crate::connection::COLOR_THEMES {assert!(source.contains(&format!("preset('{id}',")),"missing frontend palette {id}")}
+    let db=legacy();migrate_v3(&db.conn).unwrap();db.set_setting("color_theme","retired-theme").unwrap();assert_eq!(crate::connection::read(&db).unwrap().color_theme,"emerald");
+}
+
+#[test]
 fn v015_preferences_survive_database_reopen_and_preserve_legacy_history() {
     let db=legacy();migrate_v3(&db.conn).unwrap();
     let original=serde_json::to_value(db.active_messages("c").unwrap()).unwrap();

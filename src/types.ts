@@ -1,3 +1,4 @@
+import type { ColorThemeId } from './themes/themePresets'
 export type Role = 'user' | 'assistant' | 'system'
 export interface Source { citation?: string; anchor?: string | null; title: string; url: string; snippet?: string }
 export interface Attachment { id: string; name: string; mime: string; kind: 'image' | 'document' | 'code'; size: number; text?: string | null; data?: string | null }
@@ -17,6 +18,7 @@ export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'
 export type ProviderKind = 'anthropic-compatible' | 'openai-compatible' | 'openai' | 'deepseek' | 'moonshot' | 'zhipu' | 'grok'
 export interface ProviderModel { id: string; name?: string }
 export interface Settings {
+  colorTheme?: ColorThemeId
   searchModel?: string
   requestOptions?: Record<string, unknown> | null
   apiKey: string

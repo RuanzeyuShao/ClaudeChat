@@ -1,7 +1,9 @@
 :root {
   --bg: #faf9f6; --panel: #ffffff; --sidebar: #f0f0eb; --text: #2b3331;
   --muted: #737c78; --line: #e4e7e0; --line-strong: #d2d9d0; --soft: #edf0e9;
-  --accent: #28796a; --accent-soft: #28796a10; --on-accent: #ffffff;
+  --accent: #277B69; --accent-soft: #EAF2ED; --accent-ink: #277B69; --on-accent: #ffffff;
+  --chart-secondary:#416f91; --warning:#936d20; --on-error:#ffffff;
+  --tooltip-bg:#272c2a; --tooltip-text:#e3e8e1; --tooltip-muted:#abb9b0; --tooltip-line:#37433c;
   --user-bubble: #edf1eb; --code-bg: #f3f5ef; --success: #268352; --error: #bd4b4b;
   --success-soft: #26835216; --error-soft: #bd4b4b14; --scrim: #18272155;
   --shadow-sm: 0 2px 7px #23372b08, 0 8px 24px #23372b06;
@@ -15,6 +17,7 @@ html[data-theme=dark] {
   --bg: #1e2221; --panel: #272c2a; --sidebar: #242927; --text: #e3e8e1;
   --muted: #9ca79e; --line: #373f3a; --line-strong: #4a544c; --soft: #323a34;
   --accent: #86bba5; --accent-soft: #86bba516; --on-accent: #17291e;
+  --accent-ink:#86bba5; --chart-secondary:#9bc4e5; --warning:#d9bc7d; --on-error:#351815;
   --user-bubble: #303b33; --code-bg: #232925; --success: #81c699; --error: #ee9692;
   --success-soft: #81c69916; --error-soft: #ee969216; --scrim: #0e161880;
   --shadow-sm: 0 2px 8px #00000018, 0 8px 24px #0000000c;
@@ -31,3 +34,12 @@ html:not([data-theme=dark]) .hljs-number,html:not([data-theme=dark]) .hljs-liter
 html:not([data-theme=dark]) .hljs-built_in,html:not([data-theme=dark]) .hljs-symbol { color: #9b590d; }
 html:not([data-theme=dark]) .hljs-comment,html:not([data-theme=dark]) .hljs-code { color: #708074; }
 html:not([data-theme=dark]) .hljs-name,html:not([data-theme=dark]) .hljs-selector-tag { color: #267a4a; }
+.hljs-comment,.hljs-quote {color:var(--muted)!important}
+/* Shared surface transitions, without overriding width-only minimap animations or brand marks. */
+html[data-color-theme] body,
+html[data-color-theme] :is(.sidebar,.chat-header,.messages,.composer-dock,.input-box,.message-body,.api-settings,.api-settings-header,.api-settings-secondary,.api-config-list,.chat-provider-panel,.document-preview,.usage-dashboard,.usage-chart-card,.source-entry,.base-modal) {
+  transition:background-color 180ms ease,color 180ms ease,border-color 180ms ease,box-shadow 180ms ease;
+}
+html[data-color-theme] :is(button,input,textarea,select) {transition:background-color 180ms ease,color 180ms ease,border-color 180ms ease,box-shadow 180ms ease,transform 120ms ease}
+html[data-color-theme] :is(.usage-line,.usage-point-token,.usage-point-cost,.usage-brush) {transition:stroke 180ms ease,fill 180ms ease}
+@media(prefers-reduced-motion:reduce){html[data-color-theme] body,html[data-color-theme] :is(.sidebar,.chat-header,.messages,.composer-dock,.input-box,.message-body,.api-settings,.api-settings-header,.api-settings-secondary,.api-config-list,.chat-provider-panel,.document-preview,.usage-dashboard,.usage-chart-card,.source-entry,.base-modal,button,input,textarea,select,.usage-line,.usage-point-token,.usage-point-cost,.usage-brush){transition-duration:.01ms!important}}

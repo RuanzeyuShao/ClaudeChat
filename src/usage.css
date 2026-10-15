@@ -1,7 +1,7 @@
 .usage-dashboard {
   --u-bg:var(--bg); --u-card:var(--panel); --u-text:var(--text); --u-muted:var(--muted);
   --u-border:var(--line); --u-accent:var(--accent); --u-accent-soft:var(--accent-soft);
-  --u-blue:#789cb5; --u-grid:var(--line);
+  --u-blue:var(--chart-secondary); --u-grid:var(--line);
   flex:1; min-width:0; min-height:0; display:flex; flex-direction:column;
   container-type:inline-size; background:var(--u-bg); color:var(--u-text); font-size: calc(13px * var(--font-scale, 1));
 }
