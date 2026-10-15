@@ -113,7 +113,7 @@ export function citationPlugin(md:MarkdownIt){
  md.renderer.rules.citation_reference=(tokens,index,_options,environment)=>{
   const env=environment as Context,sources=env.citationSources || [],ref=tokens[index].meta as Reference & {postfix:boolean}
   const indices=ref.source!==undefined?[ref.source]:ref.ids.map(id=>sourceFor(id,sources))
-  if(!ref.postfix || indices.some(value=>value===undefined) || !indices.length){env.citationWarnings?.add(!ref.postfix?'句首引用缺少可确认的对应论述':'引用编号与来源没有唯一映射');return `<span class="citation-unverified" title="引用不可验证：保留原始位置与文本">${escape(ref.raw)}</span>`}
+  if(!ref.postfix || indices.some(value=>value===undefined) || !indices.length){env.citationWarnings?.add(!ref.postfix?'句首引用缺少可确认的对应论述':'引用编号与来源没有唯一映射');return `<span class="citation-unverified" title="引用不可验证：保留原始位置与文本">${escape(readableCitations(ref.raw,sources))}</span>`}
   return indices.map(index=>{const source=sources[index!],url=webUrl(source.url)!,label=index!+1,title=`${source.title || new URL(url).hostname}\n${new URL(url).hostname}\n${url}`;return `<sup class="inline-citation"><a href="${escape(url)}" target="_blank" rel="noopener noreferrer" title="${escape(title)}" aria-label="引用 ${label}：${escape(source.title || new URL(url).hostname)}">[${label}]</a></sup>`}).join('')
  }
 }

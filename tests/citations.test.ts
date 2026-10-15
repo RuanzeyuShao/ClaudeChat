@@ -47,5 +47,6 @@ it('resolves late source snapshots without mutating the streamed message',()=>{
 })
 it('copies native references as human-readable numbers without guessing conflicting IDs',()=>{
  const text='结论。[cc-copy]';expect(readableCitations(text,[{...sources[0],citation:'cc-copy'}])).toBe('结论。[1]');expect(text).toBe('结论。[cc-copy]')
+ expect(render('[cc-copy]未确认的位置。',[{...sources[0],citation:'cc-copy'}]).querySelector('.citation-unverified')?.textContent).toBe('[1]')
  expect(readableCitations(text,[{...sources[0],citation:'cc-copy'},{...sources[1],citation:'cc-copy'}])).toBe(text)
 })

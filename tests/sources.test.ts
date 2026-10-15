@@ -17,6 +17,7 @@ it('merges canonical URLs without renumbering or mutating source data',()=>{
 it('groups repeated provider entries while preserving every numeric reference and distinct citation',()=>{
  const groups=groupSources([{url:'https://example.com/a',title:'A',citation:'ref-1'},{url:'https://example.com/b',title:'B',citation:'ref-2'},{url:'https://example.com/a',title:'A again',citation:'ref-3'},{url:'https://example.com/a',title:'repeated entry',citation:'ref-3'}])
  expect(groups).toHaveLength(2);expect(groups[0].numbers).toEqual([1,3,4]);expect(groups[0].citations).toEqual(['ref-1','ref-3']);expect(groups[1].numbers).toEqual([2])
+ const native=groupSources([{url:'https://example.com/a',title:'A',citation:'cc-internal-id'}])[0];expect(native.citations).toEqual([]);expect(native.source.citation).toBe('cc-internal-id')
 })
 it('keeps query strings and page anchors distinct and rejects unsafe links',()=>{
  const groups=groupSources([{title:'x',url:'https://example.com/a?q=1#one'},{title:'x',url:'https://example.com/a?q=2#one'},{title:'x',url:'https://example.com/a?q=1#two'},{title:'unsafe',url:'javascript:alert(1)'}])
