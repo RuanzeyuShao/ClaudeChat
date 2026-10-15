@@ -16,7 +16,7 @@ ClaudeChat 面向日常问答、写作、文档阅读和代码讨论。支持 Cl
 
 点击上方下载入口，运行 `ClaudeChat_0.1.5_x64-setup.exe` 即可安装。使用安装包无需安装 Node.js 或 Rust；更新前请先退出正在运行的 ClaudeChat。
 
-当前安装包为 **2026-10-15 极简导航优化版（包含引用与启动修复）**。如果此前安装后提示“本地数据未能载入 / 扩展键无效”，请重新下载上方安装包并覆盖安装，无需卸载或删除本地聊天数据。
+当前安装包为 **2026-10-15 滑轨位置与 Hover 修复版（包含引用与启动修复）**。如果此前安装后提示“本地数据未能载入 / 扩展键无效”，请重新下载上方安装包并覆盖安装，无需卸载或删除本地聊天数据。
 
 v0.1.5 新增字体大小设置，修复重复创建空对话，并支持超长标题悬停滚动。安装包、[SHA-256 校验文件](https://github.com/RuanzeyuShao/ClaudeChat/releases/download/v0.1.5/SHA256SUMS.txt)与构建清单位于 [安装包目录](https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.5)；验证说明见 [v0.1.5 验证报告](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.5/docs/v0.1.5-test-report.md)。
 
@@ -27,6 +27,8 @@ v0.1.5 新增字体大小设置，修复重复创建空对话，并支持超长�
 **2026-10-15 引用与导航更新（仍为 v0.1.5）**：有明确来源映射的引用显示为可点击上标，Hover 可查看标题、域名与原始链接；无法确认归属的引用保留原文并提示不可验证。长对话左侧新增细轨道，可 Hover 查看摘要、点击消息标记定位、拖动快速滚动，也可折叠；仅显示当前分支，短对话自动隐藏。[实现与验证说明](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.5/docs/v0.1.5-citations-minimap-report.md)。
 
 导航轨道进一步精简为一列透明背景的细短横线，默认没有预览卡片；只有 Hover 命中横线时才显示角色、摘要和位置。点击空隙不会误跳转，长回答也不会把横线拉成稀疏的空白侧栏。[极简导航说明](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.5/docs/v0.1.5-minimal-minimap-report.md)。
+
+最新滑轨固定在聊天区左边缘，远离正文。所有横线默认 **6×2 px、间隔 8 px**；只有 Hover 的一条会在 150 ms 内延长到 **18 px**，当前阅读高亮和点击不会改变宽度。点击平滑定位消息；长问题预览被截断时，可按提示点击横线查看完整原文。[规格与验收说明](https://github.com/RuanzeyuShao/ClaudeChat/blob/v0.1.5/docs/v0.1.5-minimap-hover-report.md)。
 
 ## 开始使用
 
