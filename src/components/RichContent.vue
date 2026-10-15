@@ -6,8 +6,9 @@ import { contentLink,openWebLink,webUrl } from '../utils/contentLinks'
 import { forgetRemoteImage,remoteImage } from '../utils/remoteImages'
 import { api } from '../services/tauri'
 import BaseModal from './BaseModal.vue'
-const props=defineProps<{content?:string;html?:string}>()
-const rendered=computed(()=>props.html ?? renderMarkdown(props.content || '',true))
+import type { Source } from '../types'
+const props=defineProps<{content?:string;html?:string;sources?:Source[]}>()
+const rendered=computed(()=>props.html ?? renderMarkdown(props.content || '',true,props.sources))
 const root=ref<HTMLElement>(),viewer=ref<{src:string;alt:string;url:string}|null>(null)
 let disposed=false
 function available(image:HTMLImageElement){return !disposed && !!root.value?.contains(image)}

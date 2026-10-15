@@ -2,6 +2,8 @@ import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
+import { citationPlugin } from './citations'
+import type { Source } from '../types'
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!)
 const md: MarkdownIt = new MarkdownIt({ html: false, linkify: true, breaks: true, highlight(code: string, language: string): string {
@@ -57,4 +59,8 @@ md.renderer.rules.image=(tokens,index,options,env,renderer)=>{
  if(env?.deferImages && /^https?:\/\//i.test(source)){token.attrSet('data-media-src',source);const attr=token.attrIndex('src');if(attr>=0)token.attrs!.splice(attr,1)}
  return originalImage(tokens,index,options,env,renderer)
 }
-export const renderMarkdown = (content: string, deferImages=false) => md.render(content,{deferImages})
+md.use(citationPlugin)
+export function renderMarkdown(content:string,deferImages=false,citationSources?:Source[]){
+ const citationWarnings=new Set<string>(),html=md.render(content,{deferImages,citationSources,citationWarnings})
+ return html+(citationWarnings.size?`<p class="citation-warning" role="note">引用不可验证：${escapeHtml([...citationWarnings].join('；'))}。原始文本已保留，请核对来源。</p>`:'')
+}

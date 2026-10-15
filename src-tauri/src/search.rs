@@ -23,7 +23,7 @@ pub async fn searxng(base_url:&str,query:&str,cancelled:Arc<AtomicBool>)->Result
   Ok(json["results"].as_array().ok_or_else(||anyhow!("SearXNG 未返回 JSON 搜索结果，请确认实例已启用 JSON 格式"))?.iter().filter_map(|r|{
     let url=r["url"].as_str()?;
     if !url.starts_with("https://")&&!url.starts_with("http://"){return None;}
-    Some(Source{citation:String::new(),title:r["title"].as_str().unwrap_or(url).to_string(),url:url.to_string(),snippet:r["content"].as_str().unwrap_or("").chars().take(300).collect()})
+    Some(Source{anchor:None,citation:String::new(),title:r["title"].as_str().unwrap_or(url).to_string(),url:url.to_string(),snippet:r["content"].as_str().unwrap_or("").chars().take(300).collect()})
   }).take(5).collect())
 }
 
@@ -56,7 +56,7 @@ fn search_failed(value:&Value)->bool {
     assert_eq!(completion_status(true,false,&[],&[json!({"name":"web_search"})]),"empty");
     assert_eq!(completion_status(true,false,&[],&[json!({"tool":"$web_search"})]),"empty");
     assert_eq!(completion_status(true,false,&[],&[json!({"content":[{"type":"web_search_tool_result_error","error_code":"max_uses_exceeded"}]})]),"failed");
-    let sources=vec![Source{url:"https://example.com".into(),title:"source".into(),citation:String::new(),snippet:String::new()}];
+    let sources=vec![Source{anchor:None,url:"https://example.com".into(),title:"source".into(),citation:String::new(),snippet:String::new()}];
     assert_eq!(completion_status(true,false,&sources,&[]),"completed");
   }
   #[tokio::test] async fn cancellation_interrupts_waiting_for_headers_and_body(){

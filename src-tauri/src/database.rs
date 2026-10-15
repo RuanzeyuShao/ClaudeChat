@@ -53,6 +53,8 @@ pub struct Attachment {
 }
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Source {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<String>,
     #[serde(default)]
     pub citation: String,
     pub title: String,

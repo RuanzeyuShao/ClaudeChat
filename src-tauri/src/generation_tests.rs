@@ -1,5 +1,31 @@
 use super::*;
 
+#[tokio::test]
+async fn native_citations_remain_unique_across_continuations_and_publish_live_sources(){
+    let segment=|text:&str,url:&str,reason:&str|{
+        sse(json!({"type":"content_block_delta","delta":{"text":text}}))+
+        &sse(json!({"type":"content_block_delta","delta":{"type":"citations_delta","citation":{"type":"web_search_result_location","url":url,"title":text}}}))+
+        &sse(json!({"type":"message_delta","delta":{"stop_reason":reason}}))+
+        &sse(json!({"type":"message_stop"}))
+    };
+    let (base,server)=crate::test_http::serve(vec![(200,"text/event-stream",segment("第一项结论。","https://one.test/a","max_tokens")),(200,"text/event-stream",segment("第二项结论。","https://two.test/b","end_turn"))]);
+    let mut visible=String::new();let mut snapshots=vec![];
+    let result=stream(&settings("anthropic-compatible",&base),"mock".into(),history(),String::new(),true,Arc::new(AtomicBool::new(false)),|text|{visible.push_str(&text);Ok(())},|phase,data|{if phase=="source_snapshot"{snapshots.push(serde_json::from_str::<Value>(&data).unwrap())}}).await.unwrap();
+    assert_eq!(result.1.len(),2);assert_ne!(result.1[0].citation,result.1[1].citation);
+    for source in &result.1 {assert!(source.citation.starts_with("cc-"));assert!(result.0.contains(&format!("[{}]",source.citation)));}
+    assert_eq!(visible,result.0);assert_eq!(snapshots.last().unwrap()["sources"].as_array().unwrap().len(),2);assert_eq!(server.join().unwrap().len(),2);
+}
+
+#[test]
+fn openai_annotations_keep_exact_unicode_answer_spans_and_explicit_aliases(){
+    let mut sources=vec![];
+    crate::claude::collect_sources_with_text(&mut sources,&json!({"annotations":[{"type":"url_citation","url_citation":{"url":"https://one.test","title":"Source","start_index":1,"end_index":6}},{"type":"url_citation","url":"https://two.test","start_index":6,"end_index":9}]}),Some("🌍检测结论。[1]"));
+    assert_eq!(sources[0].anchor.as_deref(),Some("检测结论。"));assert_eq!(sources[1].citation,"1");
+    crate::claude::collect_sources_with_text(&mut sources,&json!({"annotations":[{"url_citation":{"url":"https://three.test","start_index":9,"end_index":999}}]}),Some("short"));
+    assert!(sources[2].anchor.is_none());assert!(sources[2].citation.is_empty());
+    let old:Source=serde_json::from_value(json!({"url":"https://old.test","title":"Old","snippet":"old"})).unwrap();assert!(old.anchor.is_none());
+}
+
 fn settings(provider: &str, base: &str) -> Settings {
     serde_json::from_value(json!({"apiKey":"","baseUrl":base,"provider":provider,"model":"user-model","thinking":"off","webSearch":false,"theme":"light"})).unwrap()
 }

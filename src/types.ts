@@ -1,5 +1,5 @@
 export type Role = 'user' | 'assistant' | 'system'
-export interface Source { citation?: string; title: string; url: string; snippet?: string }
+export interface Source { citation?: string; anchor?: string | null; title: string; url: string; snippet?: string }
 export interface Attachment { id: string; name: string; mime: string; kind: 'image' | 'document' | 'code'; size: number; text?: string | null; data?: string | null }
 export interface ApiProfile { requestOptions?: Record<string, unknown> | null; id: string; name: string; baseUrl: string; provider: ProviderKind; model: string; thinking: ThinkingLevel; inputPrice: number; outputPrice: number; hasKey: boolean }
 export interface ModelPrice { profileId: string; model: string; inputPrice: number; outputPrice: number }

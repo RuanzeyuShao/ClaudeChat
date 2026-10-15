@@ -14,6 +14,9 @@ const MAX_REQUEST_DOCUMENT_CHARS: usize = 24_000;
 const DEFAULT_OUTPUT_TOKENS:u32=8_192;
 
 pub(crate) fn add_source(sources: &mut Vec<Source>, value: &Value) {
+    add_source_with_text(sources,value,None)
+}
+fn add_source_with_text(sources:&mut Vec<Source>,value:&Value,text:Option<&str>) {
     let Some(url) = value["url"].as_str().or_else(|| value["link"].as_str()) else {
         return;
     };
@@ -23,11 +26,18 @@ pub(crate) fn add_source(sources: &mut Vec<Source>, value: &Value) {
     {
         return;
     }
-    let citation=value["refer"].as_str().unwrap_or("");
+    let anchor=text.and_then(|text|{
+        let start=value["start_index"].as_u64()? as usize;let end=value["end_index"].as_u64()? as usize;
+        if start>=end || end>text.chars().count(){return None}
+        Some(text.chars().skip(start).take(end-start).collect::<String>())
+    });
+    let citation=value["refer"].as_str().or_else(||value["ref_id"].as_str()).or_else(||value["citation_id"].as_str()).map(String::from)
+        .or_else(||anchor.as_deref().and_then(|span|span.strip_prefix('[')?.strip_suffix(']')).filter(|id|!id.is_empty() && id.chars().all(|c|c.is_ascii_digit())).map(String::from)).unwrap_or_default();
     // Keep the provider's original entries and order, including repeated URLs.
     // Vue groups cards without renumbering the underlying references.
     sources.push(Source {
-        citation: citation.to_string(),
+        anchor,
+        citation,
         title: value["title"].as_str().unwrap_or(url).to_string(),
         url: url.to_string(),
         snippet: value["snippet"]
@@ -42,20 +52,25 @@ pub(crate) fn add_source(sources: &mut Vec<Source>, value: &Value) {
 }
 
 pub(crate) fn collect_sources(sources: &mut Vec<Source>, value: &Value) {
+    collect_sources_with_text(sources,value,None)
+}
+pub(crate) fn collect_sources_with_text(sources:&mut Vec<Source>,value:&Value,text:Option<&str>) {
     if let Some(annotations) = value["annotations"].as_array() {
         for item in annotations {
             if let Some(citation) = item.get("url_citation") {
-                add_source(sources, citation);
+                add_source_with_text(sources, citation,text);
+            } else if item["type"]=="url_citation" {
+                add_source_with_text(sources,item,text);
             }
         }
     }
     if let Some(citations) = value["citations"].as_array() {
         for citation in citations {
-            add_source(sources, citation);
+            add_source_with_text(sources, citation,text);
         }
     }
     if value["citation"].is_object() {
-        add_source(sources, &value["citation"]);
+        add_source_with_text(sources, &value["citation"],text);
     }
     if value["type"] == "web_search_result" {
         add_source(sources, value);
@@ -271,7 +286,10 @@ pub async fn stream_with_progress(
                     if let Some(url) = event["delta"]["citation"]["url"].as_str() {
                         let citation=event["delta"]["citation"]["refer"].as_str().unwrap_or("");
                         if let Some(position) = sources.iter().rposition(|s| s.url == url && s.citation==citation) {
-                            let marker = format!("[{}]", position + 1);
+                            // IDs must remain unique when automatic continuations combine source arrays.
+                            let id=format!("cc-{}",uuid::Uuid::new_v4());
+                            sources[position].citation=id.clone();
+                            let marker = format!("[{id}]");
                             answer.push_str(&marker);
                             on_delta(marker)?;
                         }

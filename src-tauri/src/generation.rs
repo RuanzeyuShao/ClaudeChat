@@ -158,6 +158,8 @@ pub async fn stream(
                         if let Some(events) = value["events"].as_array() {
                             partial_events = events.clone()
                         }
+                        let mut combined=total.1.clone();combined.extend(partial_sources.clone());
+                        on_progress("source_snapshot",json!({"sources":combined}).to_string());
                     }
                 }
                 _ => {

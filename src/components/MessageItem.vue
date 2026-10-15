@@ -14,6 +14,7 @@ import ActionMenu from './ActionMenu.vue'
 import BaseModal from './BaseModal.vue'
 import SourceList from './SourceList.vue'
 import { providerLabel } from '../chatProviders'
+import { readableCitations } from '../utils/citations'
 const props=defineProps<{message:Message;canRegenerate?:boolean;codeAttachments?:Attachment[];usage?:Usage}>()
 const emit=defineEmits<{regenerate:[];preview:[attachment:Attachment];diff:[attachment:Attachment,proposed:string]}>()
 const chat=useChatStore(), ui=useUiStore(), article=ref<HTMLElement>(), copied=ref(false), editing=ref(false), editedText=ref(''), usageOpen=ref(false), chooseCode=ref(false)
@@ -25,7 +26,7 @@ const generationText=computed(()=>{
  return ({complete:`已自动续写 ${info.continuations} 次，回答已完成`,length:info.continuations>=8?'已达到自动续写上限，已生成内容已保存。':'输出预算已耗尽，未获得新的正文；请调整输出预算后继续。',interrupted:'生成中断，已生成内容已保存。',stopped:'已停止生成，已生成内容已保存。',context_limit:'已达到上下文上限，请减少历史上下文后继续。',paused:'服务商暂停了回答，已生成内容已保存。',blocked:'服务商提前结束了回答，已生成内容已保存。'})[info.status]
 })
 const canContinue=computed(()=>generation.value && ['length','interrupted','stopped','context_limit','paused'].includes(generation.value.status))
-async function copy(){try{await navigator.clipboard.writeText(props.message.content);copied.value=true;ui.notify('消息已复制');setTimeout(()=>copied.value=false,1400)}catch(e){ui.failure(e)}}
+async function copy(){try{await navigator.clipboard.writeText(readableCitations(props.message.content,props.message.sources));copied.value=true;ui.notify('消息已复制');setTimeout(()=>copied.value=false,1400)}catch(e){ui.failure(e)}}
 function edit(){editedText.value=props.message.content;editing.value=true}
 async function resend(){if(!editedText.value.trim())return;try{if(await chat.editResend(props.message,editedText.value))editing.value=false}catch(e){ui.failure(e)}}
 function quote(){const selection=window.getSelection();const selected=selection?.anchorNode && selection.focusNode && article.value?.querySelector('.markdown')?.contains(selection.anchorNode) && article.value?.querySelector('.markdown')?.contains(selection.focusNode)?selection.toString().trim():'';chat.quote(props.message,selected || undefined);ui.notify('已加入回复引用','info')}
@@ -35,7 +36,7 @@ function reviewCode(){const files=props.codeAttachments || [];if(!proposal.value
 
 </script>
 <template>
- <article ref="article" :class="['message',message.role]">
+ <article ref="article" :class="['message',message.role]" :data-message-id="message.id">
   <div v-if="message.role==='assistant'" class="message-name"><Sparkles :size="16"/>ClaudeChat <span v-if="origin || usage" class="message-connection" :title="origin?`${providerLabel(origin.provider)} · ${origin.model} · ${origin.profileName || origin.profileId}`:'历史记录仅保留 Usage 模型；Provider 来源未记录'">{{ origin?providerLabel(origin.provider):'历史模型' }} · {{ origin?.model || usage?.model }}</span></div>
   <div class="message-body">
    <div v-if="message.attachments?.length" class="attachment-list"><button v-for="item in message.attachments" :key="item.id" class="attachment-card attachment-open" :aria-label="`预览 ${item.name}`" @click="emit('preview',item)"><AttachmentThumbnail v-if="item.kind==='image'" :attachment="item"/><component v-else :is="item.kind==='code'?FileCode2:FileText" :size="23"/><span><strong>{{ item.name }}</strong><small>{{ Math.ceil(item.size/1024) }} KB · 点击预览</small></span></button></div>
@@ -43,7 +44,7 @@ function reviewCode(){const files=props.codeAttachments || [];if(!proposal.value
    <details v-if="message.reasoningContent" class="reasoning-panel"><summary><Sparkles :size="14"/>{{ message.pending?'思考过程':'已思考' }}<span>{{ message.reasoningContent.length.toLocaleString() }} 字符</span></summary><pre>{{ message.reasoningContent }}</pre></details>
    <details v-if="message.searchTrace && message.searchTrace.status!=='off'" class="search-trace"><summary><Globe :size="14"/>搜索过程 · {{ searchStatusLabel(message.searchTrace.status) }}<span>{{ message.searchTrace.sources }} 个来源</span></summary><p v-if="message.searchTrace.error" class="error">{{ message.searchTrace.error }}</p><p v-if="searchQueries(message).length">关键词：{{ searchQueries(message).join(' · ') }}</p><p v-else>Provider 未返回搜索关键词。</p><button :disabled="chat.loading" @click="chat.reSearch(message)">重新搜索并生成新版本</button></details>
    <form v-if="editing" class="message-edit" @submit.prevent="resend"><textarea v-model="editedText" rows="5" aria-label="编辑历史消息"/><div><button class="primary" type="submit" :disabled="chat.loading || !editedText.trim()">创建分支并重发</button><button class="secondary" type="button" @click="editing=false">取消</button></div></form>
-   <RichContent v-else-if="message.content" :content="message.content"/>
+   <RichContent v-else-if="message.content" :content="message.content" :sources="message.role==='assistant'?(message.sources || []):undefined"/>
    <div v-else-if="message.pending" class="thinking" aria-hidden="true"><i/><i/><i/></div>
    <SourceList v-if="message.sources?.length" :key="message.id" :sources="message.sources"/>
   </div>
