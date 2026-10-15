@@ -5,6 +5,10 @@ import { webUrl } from './contentLinks'
 
 interface Context { citationSources?:Source[]; citationWarnings?:Set<string> }
 interface Reference { raw:string; ids:string[]; source?:number }
+function lineBefore(children:Token[],index:number){
+ const preceding=children.slice(0,index),start=preceding.findLastIndex(token=>token.type==='softbreak' || token.type==='hardbreak')
+ return preceding.slice(start+1).filter(token=>token.type!=='citation_reference').map(token=>token.type==='image'||token.type==='code_inline'?' ':token.content).join('').trim()
+}
 const escape=(value:string)=>value.replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]!))
 // No positional fallback: an array position alone does not establish a provider's numbering scheme.
 function sourceFor(id:string,sources:Source[]):number|undefined {
@@ -74,7 +78,7 @@ export function citationPlugin(md:MarkdownIt){
    const duplicates=children.filter(child=>child.type==='citation_reference' && (child.meta as Reference).ids.includes(source.citation || ''))
    if(duplicates.some(child=>children.indexOf(child)>children.indexOf(token))){continue}
    if(duplicates.length){
-    const duplicate=duplicates[0],before=children.slice(0,children.indexOf(duplicate)).map(child=>child.content).join('').trim()
+    const duplicate=duplicates[0],before=lineBefore(children,children.indexOf(duplicate))
     if(duplicates.length!==1 || before){env.citationWarnings?.add('引用位置与标注范围无法唯一对应');continue}
     children.splice(children.indexOf(duplicate),1)
    }
@@ -97,9 +101,9 @@ export function citationPlugin(md:MarkdownIt){
     // Move only this adjacent punctuation, never the citation across any content.
     let end=i;while(children[end+1]?.type==='citation_reference')end++
     const next=children[end+1],punctuation=next?.type==='text'?/^[。！？.!?][”’"）)]?/.exec(next.content)?.[0]:undefined
-    const beforeGroup=children.slice(0,i).filter(child=>child.type!=='citation_reference').map(child=>child.content).join('').trim()
+    const beforeGroup=lineBefore(children,i)
     if(punctuation && beforeGroup && !/[：:]$/.test(beforeGroup)){const text=new state.Token('text','',0);text.content=punctuation;children.splice(i,0,text);next.content=next.content.slice(punctuation.length);i++;end++}
-    const preceding=children.slice(0,i).filter(child=>child.type!=='citation_reference').map(child=>child.type==='image'||child.type==='code_inline'?' ':child.content).join('').trim()
+    const preceding=lineBefore(children,i)
     const trailing=children.slice(end+1).map(child=>child.content).join('')
     const boundary=/[。！？.!?][”’"）)]?$/.test(preceding) || !trailing.trim() || /^\s*\n/.test(trailing)
     token.meta={...token.meta,postfix:!!preceding && !/[\n：:]$/.test(preceding) && boundary}

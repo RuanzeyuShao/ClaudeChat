@@ -14,7 +14,7 @@ it('places immediately adjacent sentence punctuation before a postfix citation g
  const ambiguous=render('另一结论[1]仍有争议。');expect(ambiguous.querySelectorAll('.inline-citation')).toHaveLength(0);expect(ambiguous.textContent).toContain('另一结论[1]仍有争议。')
 })
 it('never guesses source order or silently moves a leading citation',()=>{
- for(const content of ['[1][2]该方法有效。','[1]\n\n另一段结论。','[1]。未知归属。']){const node=render(content);expect(node.querySelectorAll('.inline-citation')).toHaveLength(0);expect(node.querySelector('.citation-warning')?.textContent).toContain('引用不可验证');expect(node.textContent).toContain('[1]')}
+ for(const content of ['[1][2]该方法有效。','[1]\n\n另一段结论。','[1]。未知归属。','前一条结论。\n[1]下一条结论。']){const node=render(content);expect(node.querySelectorAll('.inline-citation')).toHaveLength(0);expect(node.querySelector('.citation-warning')?.textContent).toContain('引用不可验证');expect(node.textContent).toContain('[1]')}
  const node=render('结论。[1]',[{title:'未知编号',url:'https://actual.test'}]);expect(node.querySelector('.inline-citation')).toBeNull()
 })
 it('uses one unambiguous provider answer span to relocate a leading marker to the supported sentence only',()=>{
