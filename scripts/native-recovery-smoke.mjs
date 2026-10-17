@@ -40,5 +40,10 @@ try{
  const origins=await invoke('get_extension',{key:'v4:requestOrigins'});assert.equal(origins[message.usageId].generation.status,'interrupted')
  queue.push(finish('重启后接回完整结尾。'));completion=await send('restart-request','',message.id);assert.equal(completion.status,'complete');tree=await invoke('get_tree',{conversationId:id});assert.equal(tree.messages.length,4);assert.ok(tree.messages.find(m=>m.id==='crash-answer').content.endsWith('重启后接回完整结尾。'))
  for(const request of requests.slice(1))assert.equal(request.web_search_options,undefined)
+ // A separate search model's safety refusal must abort the answering stage, with its call still recorded.
+ const before=requests.length,usageBefore=(await invoke('get_usage')).length;
+ queue.push(res=>{res.writeHead(403,{'Content-Type':'application/json'});res.end(JSON.stringify({error:{code:'content_filter',message:'search safety refusal'}}))});
+ await assert.rejects(invoke('send_message',{conversationId:id,content:'独立搜索模型被拒绝',settings:{...settings,searchMode:'force',webSearch:true,searchModel:'mock-search'},persistUser:true,attachments:[],parentId:'crash-answer',references:[],requestId:'search-refusal',continueMessageId:null,checkCompletion:false}),/搜索未完成/);
+ assert.equal(requests.length,before+1);assert.equal((await invoke('get_usage')).length,usageBefore+1)
  assert.equal(queue.length,0);console.log('Native recovery, per-call usage, same-node manual continuation, live checkpoint, process exit and restart resume: passed')
 }finally{await stop();api.closeAllConnections();await new Promise(r=>api.close(r))}

@@ -685,6 +685,7 @@ pub async fn send_message(
         let mut search_settings = settings.clone();
         search_settings.model = settings.search_model.trim().into();
         let mut search_calls:Vec<crate::recovery::Call>=vec![];
+        let mut search_completion=serde_json::Value::Null;
         let question = Message {
             content: content.clone(),
             role: "user".into(),
@@ -698,7 +699,7 @@ pub async fn send_message(
             true,
             cancelled.clone(),
             |_| Ok(()),
-            |phase,data|{if phase=="call_usage"{if let Ok(call)=serde_json::from_str(&data){search_calls.push(call)}}},
+            |phase,data|{if phase=="call_usage"{if let Ok(call)=serde_json::from_str(&data){search_calls.push(call)}}else if phase=="completion"{if let Ok(value)=serde_json::from_str(&data){search_completion=value}}},
         )
         .await
         .map_err(|e| {record_search_failure(&window,&state,&conversation_id,&request_id,&settings,&content,&e.to_string());e.to_string()})?;
@@ -732,6 +733,12 @@ pub async fn send_message(
         let mut origins=db.extension("v4:usageOrigins").map_err(|e|e.to_string())?;if !origins.is_object(){origins=serde_json::json!({})}origins[&search_usage.id]=call.origin.clone();db.set_setting("v4:usageOrigins",&origins.to_string()).map_err(|e|e.to_string())?;
         let _=window.emit("chat-usage-origin",serde_json::json!({"id":search_usage.id,"origin":call.origin}));
         let _ = window.emit("chat-usage", serde_json::json!({"usage":search_usage}));}
+        drop(db);
+        if search_completion["status"]!="complete" {
+            let error=format!("搜索未完成（{}）：{}",search_completion["status"].as_str().unwrap_or("interrupted"),search_completion["error"].as_str().unwrap_or("搜索模型未正常完成，请检查搜索模型或连接设置"));
+            record_search_failure(&window,&state,&conversation_id,&request_id,&settings,&content,&error);
+            return Err(error);
+        }
     }
     if use_search && settings.search_provider == "searxng" {
         if settings.search_base_url.trim().is_empty() {
