@@ -19,7 +19,8 @@ async function launch(){
  app.on('error',error=>console.error(error.message))
  const deadline=Date.now()+30000
  while(Date.now()<deadline){try{const response=await fetch(`http://127.0.0.1:${port}/json/version`);if(response.ok)break}catch{}await new Promise(resolve=>setTimeout(resolve,250))}
- browser=await chromium.connectOverCDP(`http://127.0.0.1:${port}`)
+ while(Date.now()<deadline){try{browser=await chromium.connectOverCDP(`http://127.0.0.1:${port}`,{timeout:2000});break}catch{await new Promise(resolve=>setTimeout(resolve,200))}}
+ if(!browser)throw new Error('The production WebView DevTools endpoint did not become ready')
  const page=browser.contexts()[0].pages()[0] || await browser.contexts()[0].waitForEvent('page')
  await page.locator('.sidebar-footer').waitFor()
  await page.locator('.app-boot').waitFor({state:'detached'})
@@ -31,6 +32,8 @@ async function stop(){
  if(browser){await browser.close().catch(()=>{});browser=undefined}
  if(app && app.exitCode===null){const exited=new Promise(resolve=>app.once('exit',resolve));app.kill();await exited}
  app=undefined
+ const deadline=Date.now()+5000
+ while(Date.now()<deadline){try{const response=await fetch(`http://127.0.0.1:${port}/json/version`,{signal:AbortSignal.timeout(500)});if(!response.ok)break}catch{break}await new Promise(resolve=>setTimeout(resolve,100))}
 }
 try{
  let page=await launch()

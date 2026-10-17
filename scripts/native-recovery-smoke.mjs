@@ -17,9 +17,11 @@ let app,browser,page
 async function launch(){
  app=spawn(exe,[],{windowsHide:true,stdio:'ignore',env:{...process.env,APPDATA:data,WEBVIEW2_USER_DATA_FOLDER:join(data,'webview'),NO_PROXY:'127.0.0.1,localhost',WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-port=${port} --remote-allow-origins=*`}})
  const deadline=Date.now()+30000;while(Date.now()<deadline){try{if((await fetch(`http://127.0.0.1:${port}/json/version`)).ok)break}catch{}await new Promise(r=>setTimeout(r,200))}
- browser=await chromium.connectOverCDP(`http://127.0.0.1:${port}`);page=browser.contexts()[0].pages()[0];await page.locator('.sidebar-footer').waitFor();await page.locator('.app-boot').waitFor({state:'detached'});return page
+ while(Date.now()<deadline){try{browser=await chromium.connectOverCDP(`http://127.0.0.1:${port}`,{timeout:2000});break}catch{await new Promise(r=>setTimeout(r,200))}}
+ if(!browser)throw new Error('The production WebView DevTools endpoint did not become ready')
+ page=browser.contexts()[0].pages()[0];await page.locator('.sidebar-footer').waitFor();await page.locator('.app-boot').waitFor({state:'detached'});return page
 }
-async function stop(){if(browser){await browser.close().catch(()=>{});browser=undefined}if(app && app.exitCode===null){const finished=new Promise(r=>app.once('exit',r));app.kill();await finished}app=undefined}
+async function stop(){if(browser){await browser.close().catch(()=>{});browser=undefined}if(app && app.exitCode===null){const finished=new Promise(r=>app.once('exit',r));app.kill();await finished}app=undefined;const deadline=Date.now()+5000;while(Date.now()<deadline){try{if(!(await fetch(`http://127.0.0.1:${port}/json/version`,{signal:AbortSignal.timeout(500)})).ok)break}catch{break}await new Promise(r=>setTimeout(r,100))}}
 const invoke=(command,args={})=>page.evaluate(({command,args})=>window.__TAURI_INTERNALS__.invoke(command,args),{command,args})
 const partial=res=>{res.writeHead(200,{'Content-Type':'text/event-stream'});res.end(frame({choices:[{delta:{content:'已经保存的第一段。',reasoning_content:'思考记录',annotations:[{url_citation:{url:'https://source.test/original',title:'真实测试来源',refer:'7'}}]}}],usage:{prompt_tokens:7,completion_tokens:4}}))}
 const finish=text=>res=>{res.writeHead(200,{'Content-Type':'text/event-stream'});res.end(answer(text))}
