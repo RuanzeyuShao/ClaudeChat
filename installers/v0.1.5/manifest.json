@@ -3,11 +3,11 @@
   "version": "0.1.5",
   "platform": "windows-x64",
   "installer": "ClaudeChat_0.1.5_x64-setup.exe",
-  "bytes": 6963413,
-  "sha256": "e817cfbf0aec8214a8d7e37d288c32ba6c29e37730dd3f2daeb9b2c2e0d8faed",
-  "builtAt": "2026-10-15T03:56:21.44Z",
+  "bytes": 7003556,
+  "sha256": "fc388c3475f834c2c6f1a014df7f3d27772302c3d856c8db9440f87c8d50ba6c",
+  "builtAt": "2026-10-17T14:51:28.376Z",
   "branch": "v0.1.5",
   "remotePublished": true,
-  "revision": "2026-10-15-color-themes",
-  "sourceCommit": "3caea08c43275b74d9cbc3e93e3c76615a77b9a8"
+  "revision": "2026-10-17-long-answer-recovery",
+  "sourceCommit": "4a2f44dfc5618cac16bbe7bd356b06038b3d3cf6"
 }
