@@ -248,6 +248,24 @@ impl Database {
         origins[id]=origin.clone();
         self.set_setting("v4:requestOrigins",&origins.to_string())
     }
+    /// Upsert a single assistant node. Checkpoints and the final result share the same identity.
+    pub fn checkpoint_response(&self,conversation_id:&str,node_id:&str,content:&str,sources:&[Source],reasoning:&str,trace:&serde_json::Value,origin:&serde_json::Value)->Result<()> {
+        let tx=self.conn.unchecked_transaction()?;
+        let existing:Option<(String,String)>=self.conn.query_row("SELECT conversation_id,role FROM messages WHERE id=?",[node_id],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+        if let Some((owner,role))=existing {anyhow::ensure!(owner==conversation_id && role=="assistant","恢复目标不是此会话的 AI 回答");}
+        else {
+            let parent=self.leaf(conversation_id)?;
+            self.conn.execute("INSERT INTO messages(id,conversation_id,role,content,created_at,metadata) VALUES(?,?,'assistant','',?,NULL)",params![node_id,conversation_id,Utc::now().to_rfc3339()])?;
+            self.conn.execute("INSERT INTO message_nodes(message_id,parent_id,refs) VALUES(?,?,'[]')",params![node_id,parent])?;
+            self.set_leaf(conversation_id,Some(node_id))?;
+        }
+        let usage_id=format!("reply:{node_id}");
+        self.conn.execute("UPDATE messages SET content=?,metadata=? WHERE id=?",params![content,serde_json::to_string(sources)?,node_id])?;
+        self.conn.execute("UPDATE message_nodes SET usage_id=?,reasoning_content=?,search_trace=? WHERE message_id=?",params![usage_id,reasoning,trace.to_string(),node_id])?;
+        self.record_request_origin(&usage_id,origin)?;
+        self.conn.execute("UPDATE conversations SET updated_at=? WHERE id=?",params![Utc::now().to_rfc3339(),conversation_id])?;
+        tx.commit()?;Ok(())
+    }
     pub fn add_usage_with_origin(&self,usage:&Usage,origin:&serde_json::Value)->Result<()> {
         let tx=self.conn.unchecked_transaction()?;
         self.add_usage(usage)?;self.record_request_origin(&usage.id,origin)?;

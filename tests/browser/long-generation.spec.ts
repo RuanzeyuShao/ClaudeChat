@@ -17,6 +17,6 @@ for(const viewport of [{width:1440,height:900},{width:800,height:600},{width:640
   await page.locator('.messages').evaluate(el=>el.scrollTop=el.scrollHeight)
   await expect(page.locator('.generation-notice button')).toBeVisible()
   const notice=await page.locator('.generation-notice').boundingBox(),composer=await page.locator('.input-wrap').boundingBox();expect(notice!.y+notice!.height).toBeLessThanOrEqual(composer!.y)
-  await page.locator('.generation-notice button').click();await expect(page.locator('.message')).toHaveCount(4);await expect(page.locator('.message.assistant .markdown').first()).toContainText('最后一段仍然完整保留。')
+  await page.locator('.generation-notice button').click();await expect(page.locator('.message')).toHaveCount(2);await expect(page.locator('.message.assistant .markdown').first()).toContainText('最后一段仍然完整保留。')
  })
 }

@@ -18,7 +18,7 @@ export type RequestStatus = 'idle' | 'connecting' | 'searching' | 'thinking' | '
 interface ReplyBranch { parentId: string | null; rollbackLeaf: string | null; previousMessages?:Message[] }
 interface FailedReply {conversationId:string;content:string;attachments:Attachment[];persistUser:boolean;branch:ReplyBranch}
 export const useChatStore = defineStore('chat', {
-  state: () => ({ conversations: [] as Conversation[], activeId: '' as string, blankConversationId: '', fontSize: 14, appearanceBusy:false, appearanceRevision:0, savedAppearance:null as Appearance|null, settings: { ...defaultSettings }, profiles: [] as ApiProfile[], usage: [] as Usage[], loading: false, error: '', initialized: false, profileBusy: false, activeRequestId:'',requestCompletion:null as GenerationInfo | null,failedReply:null as FailedReply | null,requestSettings:null as Settings | null,requestOrigins:{} as Record<string,RequestIdentity>,pendingOrigins:{} as Record<string,RequestIdentity>, usageOrigins: {} as Record<string,{input:string;output:string;thinking:string}>, status: 'idle' as RequestStatus, stopping: false, sendMode: 'enter' as 'enter' | 'ctrl-enter', drafts: {} as Record<string, { text: string; attachments: Attachment[] }>, providerPreferences: {} as Partial<Record<ChatProviderId, ProviderPreference>>, trees: {} as Record<string, Message[]>, presets: [] as Preset[], organization: {} as Record<string, Organization>, references: [] as MessageReference[] }),
+  state: () => ({ conversations: [] as Conversation[], activeId: '' as string, blankConversationId: '', fontSize: 14, appearanceBusy:false, appearanceRevision:0, savedAppearance:null as Appearance|null, settings: { ...defaultSettings }, profiles: [] as ApiProfile[], usage: [] as Usage[], loading: false, error: '', initialized: false, profileBusy: false, activeRequestId:'',requestCompletion:null as GenerationInfo | null,failedReply:null as FailedReply | null,requestSettings:null as Settings | null,requestOrigins:{} as Record<string,RequestIdentity>,pendingOrigins:{} as Record<string,RequestIdentity>, usageOrigins: {} as Record<string,{input:string;output:string;thinking:string}>, continuationNotice:'', status: 'idle' as RequestStatus, stopping: false, sendMode: 'enter' as 'enter' | 'ctrl-enter', drafts: {} as Record<string, { text: string; attachments: Attachment[] }>, providerPreferences: {} as Partial<Record<ChatProviderId, ProviderPreference>>, trees: {} as Record<string, Message[]>, presets: [] as Preset[], organization: {} as Record<string, Organization>, references: [] as MessageReference[] }),
   getters: { active(state): Conversation | undefined { return state.conversations.find(x => x.id === state.activeId) } },
   actions: {
     async initialize() {
@@ -50,7 +50,8 @@ export const useChatStore = defineStore('chat', {
       }))
       listeners.push(await listen<{ conversationId: string; requestId:string; phase: 'connecting' | 'thinking' | 'searching' | 'continuing'; delta?: string }>('chat-status', ({ payload }) => {
         if (!this.loading || this.stopping || this.activeId !== payload.conversationId || payload.requestId!==this.activeRequestId) return
-        this.status = payload.phase
+        if(payload.phase==='continuing')this.continuationNotice=payload.delta || '正在自动续写'
+        if(['connecting','thinking','searching','continuing'].includes(payload.phase))this.status = payload.phase
         if(payload.phase==='searching'){const message=this.active?.messages.at(-1);if(message?.searchTrace?.status==='allowed')message.searchTrace.status='searching'}
         if (payload.phase==='thinking' && payload.delta) { const message = this.active?.messages.at(-1); if (message?.pending) message.reasoningContent = (message.reasoningContent || '') + payload.delta }
       }))
@@ -287,9 +288,31 @@ export const useChatStore = defineStore('chat', {
     },
     async reSearch(message: Message) {if(this.loading || this.profileBusy)return;const old=this.settings.searchMode;this.settings.searchMode='force';try{if(message.role==='user')await this.editResend(message,message.content);else await this.regenerate(message)}finally{this.settings.searchMode=old}},
     async renameCategory(kind: 'folder' | 'tag', old: string, next: string) {for(const value of Object.values(this.organization)){if(kind==='folder' && value.folder===old)value.folder=next;if(kind==='tag')value.tags=[...new Set((value.tags || []).map(t=>t===old?next:t).filter(Boolean))]}if(api.isTauri)await api.saveExtension('v3:organization',this.organization)},
-    async continueReply(message: Message) {
-      if(this.loading || this.profileBusy || !this.active || !this.active.messages.some(m=>m.id===message.id))return
-      return this.send('请从上一条回答结束处继续生成，避免重复已有内容。',[],{parentId:message.id,rollbackLeaf:this.active.messages.at(-1)?.id || null})
+    usageFor(message:Message):Usage|undefined {
+      const origin=message.usageId?this.requestOrigins[message.usageId]:undefined
+      const ids=origin?.usageIds || (message.usageId?[message.usageId]:[]),items=this.usage.filter(u=>ids.includes(u.id))
+      if(!items.length)return undefined
+      return {...items[0],id:message.usageId || items[0].id,inputTokens:items.reduce((n,u)=>n+u.inputTokens,0),outputTokens:items.reduce((n,u)=>n+u.outputTokens,0),thinkingTokens:items.reduce((n,u)=>n+u.thinkingTokens,0),estimatedCost:items.reduce((n,u)=>n+u.estimatedCost,0),durationMs:items.reduce((n,u)=>n+u.durationMs,0)}
+    },
+    async continueReply(message:Message,checkCompletion=false) {
+      if(this.loading || this.profileBusy || !this.active || this.active.messages.at(-1)?.id!==message.id)return
+      const generation=message.generation || (message.usageId?this.requestOrigins[message.usageId]?.generation:undefined)
+      if(generation?.status==='blocked')return
+      try{this.validateSend()}catch(e){this.error=friendlyError(e);return}
+      this.loading=true;this.stopping=false;this.error='';this.status='continuing';this.continuationNotice=checkCompletion?'正在检查并继续':'正在继续生成';message.pending=true
+      if(!api.isTauri){message.pending=false;this.loading=false;this.status='incomplete';return}
+      this.requestCompletion=null;this.activeRequestId=crypto.randomUUID();this.requestSettings=snapshotSettings(this.settings)
+      const conversationId=this.activeId,originalContent=message.content
+      try {
+        const result=await api.sendMessage(conversationId,'',this.requestSettings,false,[],null,[],this.activeRequestId,message.id,checkCompletion)
+        this.flushDeltas();await this.refreshTree(conversationId);await this.refreshUsage();this.requestOrigins=await api.getExtension<Record<string,RequestIdentity>>('v4:requestOrigins') || this.requestOrigins
+        const completion=result || this.requestCompletion;const latest=this.active?.messages.at(-1);if(latest && completion)latest.generation=completion
+        this.status=this.stopping || completion?.status==='stopped'?'stopped':completion?.status==='complete'?'completed':'incomplete'
+      }catch(e){
+        this.flushDeltas();this.error=friendlyError(e);message.pending=false;message.generation={status:'interrupted',reason:'interrupted',continuations:0,error:this.error};this.status='incomplete'
+        // Keep visible data when local persistence fails; never restore an older snapshot over it.
+        if(message.content.length<originalContent.length)message.content=originalContent
+      }finally{this.loading=false;this.stopping=false;this.activeRequestId='';this.requestSettings=null;this.requestCompletion=null;message.pending=false;this.continuationNotice=''}
     },
     quote(message: Message, selectedText?: string) { const text = selectedText || message.content; this.references = [{messageId: message.id, text}] },
     async organize(id: string, value: Organization) { const next={...this.organization,[id]:value};if (api.isTauri) await api.saveExtension('v3:organization', next);this.organization=next },
@@ -326,7 +349,7 @@ export const useChatStore = defineStore('chat', {
     async requestReply(content: string, assistant: Message, persistUser: boolean, attachments: Attachment[] = [], branch?: ReplyBranch) {
       if (!this.active) return
       const request=snapshotSettings(this.settings)
-      this.requestCompletion=null
+      this.requestCompletion=null;this.continuationNotice=''
       this.activeRequestId=assistant.id
       this.requestSettings=request
       this.pendingOrigins[assistant.id]=identity(request,this.profiles.find(p=>p.id===request.profileId)?.name)
@@ -338,7 +361,7 @@ export const useChatStore = defineStore('chat', {
       } catch (e) {
         this.flushDeltas()
         let restorationError=''
-        try{if(branch)await api.selectBranch(conversationId,branch.rollbackLeaf);await this.refreshTree(conversationId)}catch(restore){if(branch?.previousMessages){const conversation=this.conversations.find(c=>c.id===conversationId);if(conversation)conversation.messages=branch.previousMessages}restorationError=`；恢复原路径失败：${friendlyError(restore)}`}
+        try{if(assistant.content || assistant.reasoningContent){assistant.pending=false;assistant.generation={status:'interrupted',reason:'local_save_failed',continuations:0,error:friendlyError(e)}}else{if(branch)await api.selectBranch(conversationId,branch.rollbackLeaf);await this.refreshTree(conversationId)}}catch(restore){if(branch?.previousMessages){const conversation=this.conversations.find(c=>c.id===conversationId);if(conversation)conversation.messages=branch.previousMessages}restorationError=`；恢复原路径失败：${friendlyError(restore)}`}
         if(this.activeId===conversationId)this.error=friendlyError(e)+restorationError
         assistant.pending=false;this.status=this.stopping?'stopped':'failed'
         if(branch && !this.stopping)this.failedReply={conversationId,content,attachments,persistUser,branch}
@@ -351,7 +374,7 @@ export const useChatStore = defineStore('chat', {
       }
       finally { this.loading = false; this.stopping=false;this.requestCompletion=null;this.requestSettings=null;this.activeRequestId='';delete this.pendingOrigins[assistant.id] }
     },
-    async retry() { if(this.loading || this.profileBusy)return;const failed=this.failedReply;if(failed && failed.conversationId===this.activeId){if(failed.persistUser){await this.send(failed.content,failed.attachments,failed.branch);return}const original=this.active?.messages.find(m=>m.role==='assistant' && m.parentId===failed.branch.parentId);if(original){await this.regenerate(original);return}}const last=this.active?.messages.at(-1); if(!last)return;try{this.validateSend()}catch(e){this.error=friendlyError(e);return} if(last.role==='assistant')await this.regenerate(last);else if(last.role==='user'){const assistant:Message={id:crypto.randomUUID(),parentId:last.id,role:'assistant',content:'',createdAt:new Date().toISOString(),pending:true};this.active!.messages.push(assistant);this.loading=true;this.stopping=false;this.error='';this.status='connecting';await this.requestReply(last.content,assistant,false)} },
+    async retry() { if(this.loading || this.profileBusy)return;const failed=this.failedReply;if(failed && failed.conversationId===this.activeId){if(failed.persistUser){await this.send(failed.content,failed.attachments,failed.branch);return}const original=this.active?.messages.find(m=>m.role==='assistant' && m.parentId===failed.branch.parentId);if(original){await this.regenerate(original);return}}const last=this.active?.messages.at(-1); if(!last)return;const generation=last.generation || (last.usageId?this.requestOrigins[last.usageId]?.generation:undefined);if(last.role==='assistant' && generation && generation.status!=='complete' && generation.status!=='blocked'){await this.continueReply(last);return}try{this.validateSend()}catch(e){this.error=friendlyError(e);return} if(last.role==='assistant')await this.regenerate(last);else if(last.role==='user'){const assistant:Message={id:crypto.randomUUID(),parentId:last.id,role:'assistant',content:'',createdAt:new Date().toISOString(),pending:true};this.active!.messages.push(assistant);this.loading=true;this.stopping=false;this.error='';this.status='connecting';await this.requestReply(last.content,assistant,false)} },
     async stop() { if(!this.loading || this.stopping)return; this.stopping=true; try { if (api.isTauri) { await api.stopGeneration(); return } this.loading = false; this.stopping=false;this.requestSettings=null;this.activeRequestId=''; this.status='stopped'; const msg = this.active?.messages.at(-1); if (msg) msg.pending = false } catch(e){this.stopping=false;useUiStore().failure(e)} }
   }
 })

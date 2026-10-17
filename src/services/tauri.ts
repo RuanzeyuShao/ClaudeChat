@@ -45,7 +45,7 @@ export const api = {
   saveSettings: (settings: Settings, conversationId?: string) => invoke<Settings>('save_settings', { settings, conversationId: conversationId || null }),
   applyPresetSettings: (settings:Settings,conversationId:string,systemPrompt?:string)=>invoke<Settings>('apply_preset_settings',{settings,conversationId,systemPrompt:systemPrompt ?? null}),
   testConnection: (settings: Settings) => invoke<ConnectionResult>('test_connection', { settings }),
-  sendMessage: (conversationId: string, content: string, settings: Settings, persistUser = true, attachments: Attachment[] = [], parentId: string | null = null, references: MessageReference[] = [],requestId?:string) => invoke<GenerationInfo | void>('send_message', { conversationId, content, settings, persistUser, attachments, parentId, references,requestId:requestId || null }),
+  sendMessage: (conversationId: string, content: string, settings: Settings, persistUser = true, attachments: Attachment[] = [], parentId: string | null = null, references: MessageReference[] = [],requestId?:string,continueMessageId?:string,checkCompletion=false) => invoke<GenerationInfo | void>('send_message', { conversationId, content, settings, persistUser, attachments, parentId, references,requestId:requestId || null,continueMessageId:continueMessageId || null,checkCompletion }),
   deleteLastAssistant: (conversationId: string) => invoke<void>('delete_last_assistant', { conversationId }),
   stopGeneration: () => invoke<void>('stop_generation')
 }

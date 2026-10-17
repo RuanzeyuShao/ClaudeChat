@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use futures_util::StreamExt;
 use reqwest::Client;
 use serde_json::{json, Value};
@@ -178,60 +178,43 @@ pub async fn stream_with_progress(
     }
 
     crate::provider::ProviderAdapter::Anthropic.configure_options(&mut body, &options)?;
+    let initial_body=body.clone();
     let client = Client::builder()
         .connect_timeout(std::time::Duration::from_secs(20))
+        .read_timeout(std::time::Duration::from_secs(90))
         .build()?;
+    let call_started=std::time::Instant::now();
+    on_progress("call_start",String::new());
     let mut response = request(&client, &base_url, &api_key, &body, &cancelled).await?;
-    if response.status().as_u16() == 400
-        && budget.is_some()
-        && crate::provider::default_options(&options)
-    {
-        body["thinking"] = json!({"type":"adaptive"});
-        body["output_config"] = json!({"effort":thinking});
-        response = request(&client, &base_url, &api_key, &body, &cancelled).await?;
-    }
-    if response.status().as_u16() == 400
-        && budget.is_some()
-        && crate::provider::default_options(&options)
-    {
-        body.as_object_mut().map(|object| object.remove("thinking"));
-        body.as_object_mut()
-            .map(|object| object.remove("output_config"));
-        body["max_tokens"] = json!(DEFAULT_OUTPUT_TOKENS);
-        response = request(&client, &base_url, &api_key, &body, &cancelled).await?;
+    if response.status().as_u16()==400 && budget.is_some() && crate::provider::default_options(&options){
+        let error=crate::recovery::http_error(response,&cancelled).await;
+        if crate::recovery::kind(&error)==crate::recovery::Kind::Fatal && error.to_string().contains("thinking"){
+            on_progress("call_usage",json!({"input":0,"output":0,"thinking":0,"durationMs":0,"origin":{},"reason":"unsupported_thinking"}).to_string());
+            body["thinking"]=json!({"type":"adaptive"});body["output_config"]=json!({"effort":thinking});
+            on_progress("call_start",String::new());
+            response=request(&client,&base_url,&api_key,&body,&cancelled).await?;
+            if response.status().as_u16()==400 {
+                let error=crate::recovery::http_error(response,&cancelled).await;
+                if crate::recovery::kind(&error)!=crate::recovery::Kind::Fatal || !(error.to_string().contains("thinking") || error.to_string().contains("output_config")){return Err(error)}
+                on_progress("call_usage",json!({"input":0,"output":0,"thinking":0,"durationMs":0,"origin":{},"reason":"unsupported_thinking"}).to_string());
+                body.as_object_mut().unwrap().remove("thinking");body.as_object_mut().unwrap().remove("output_config");body["max_tokens"]=json!(DEFAULT_OUTPUT_TOKENS);
+                on_progress("call_start",String::new());
+            response=request(&client,&base_url,&api_key,&body,&cancelled).await?;
+            }
+        }else{return Err(error)}
     }
     // Older gateways may reject the larger default. Preserve explicit user limits.
-    if response.status().as_u16()==400 && options.get("max_tokens").is_none() && body.get("thinking").is_none(){
-        let error=response.text().await.unwrap_or_default();
-        if error.contains("max_tokens") || error.contains("maximum"){
+    if response.status().as_u16()==400 && options.get("max_tokens").is_none() && options.get("client_max_output_tokens").is_none() && body.get("thinking").is_none(){
+        let error=crate::recovery::http_error(response,&cancelled).await;
+        if crate::recovery::kind(&error)==crate::recovery::Kind::Fatal && error.to_string().contains("max_tokens") {
+            on_progress("call_usage",json!({"input":0,"output":0,"thinking":0,"durationMs":0,"origin":{},"reason":"output_budget_rejected"}).to_string());
             body.as_object_mut().unwrap().remove("thinking");body.as_object_mut().unwrap().remove("output_config");body["max_tokens"]=json!(4096);
+            on_progress("call_start",String::new());
             response=request(&client,&base_url,&api_key,&body,&cancelled).await?;
-        }else{return Err(anyhow!("Anthropic API 返回 400：{}",error))}
+        }else{return Err(error)}
     }
-    if matches!(response.status().as_u16(), 502 | 503) && !cancelled.load(Ordering::Relaxed) {
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-        response = request(&client, &base_url, &api_key, &body, &cancelled).await?;
-    }
-    if !response.status().is_success() {
-        if response.status().as_u16() == 524 {
-            return Err(anyhow!("API 网关等待上游响应超时（524）。可尝试缩短文档、关闭联网搜索或降低思考强度；若短消息也超时，请检查当前 Base URL 服务。"));
-        }
-        if response.status().as_u16() == 502 {
-            let trace = response
-                .headers()
-                .get("request-id")
-                .or_else(|| response.headers().get("cf-ray"))
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or("");
-            return Err(anyhow!("API 网关返回 502（已重试一次）。当前模型：{}；联网搜索：{}；思考强度：{}。请先在设置中测试连接，并用纯文本、关闭联网搜索及思考强度 Off 逐项排查。{}",model,if web_search{"开"}else{"关"},thinking,if trace.is_empty(){String::new()}else{format!(" 请求 ID：{}",trace)}));
-        }
-        return Err(anyhow!(
-            "Anthropic API 返回 {}：{}",
-            response.status(),
-            response.text().await.unwrap_or_default()
-        ));
-    }
-
+    if !response.status().is_success(){return Err(crate::recovery::http_error(response,&cancelled).await)}
+    if body!=initial_body{on_progress("protocol_options",json!({"max_tokens":body["max_tokens"],"thinking":body.get("thinking").cloned().unwrap_or(Value::Null),"output_config":body.get("output_config").cloned().unwrap_or(Value::Null)}).to_string());}
     let mut stream = response.bytes_stream();
     let mut decoder = crate::sse::Decoder::default();
     let mut answer = String::new();
@@ -239,11 +222,13 @@ pub async fn stream_with_progress(
     let mut search_events = vec![];
     let mut reasoning_content = String::new();
     let (mut input_tokens, mut output_tokens, mut thinking_tokens) = (0, 0, 0);
+    let mut call_origin=json!({"input":"unavailable","output":"unavailable","thinking":"unavailable"});
     let mut terminal=false;
+    let mut finish_at:Option<std::time::Instant>=None;
     let mut finish_reason=String::new();
     let mut snapshot_counts=(0,0);
-    loop {
-        let chunk = tokio::select! {chunk=stream.next()=>chunk,_=tokio::time::sleep(std::time::Duration::from_millis(100))=>{if cancelled.load(Ordering::Relaxed){break;}else{continue;}}};
+    let parsed:Result<()>=async {loop {
+        let chunk = tokio::select! {chunk=stream.next()=>chunk,_=tokio::time::sleep(std::time::Duration::from_millis(100))=>{if cancelled.load(Ordering::Relaxed) || finish_at.map(|at|at.elapsed().as_millis()>=1000).unwrap_or(false){break;}else{continue;}}};
         if cancelled.load(Ordering::Relaxed) {
             break;
         }
@@ -257,13 +242,14 @@ pub async fn stream_with_progress(
                 terminal=true;
                 continue;
             }
-            let event=serde_json::from_str::<Value>(&data).map_err(|e|anyhow!("无法解析 API 流事件：{}",e))?;
+            let event=serde_json::from_str::<Value>(&data).map_err(|e|crate::recovery::fail(crate::recovery::Kind::Stream,format!("无法解析 API 流事件：{}",e)))?;
             if event["type"]=="message_stop"{terminal=true;}
             if event["type"] == "error" {
-                return Err(anyhow!("API 流错误：{}", event["error"]));
+                return Err(crate::recovery::stream_error(&event["error"]));
             }
             collect_search_events(&mut search_events, &event); if event["content_block"]["type"] == "server_tool_use" { on_progress("searching", String::new()); }
             if event["type"] == "message_start" { on_progress("usage", json!({"input":if event["message"]["usage"]["input_tokens"].is_i64(){"provider"}else{"unavailable"}}).to_string());
+                if event["message"]["usage"]["input_tokens"].is_i64(){call_origin["input"]=json!("provider");}
                 input_tokens = event["message"]["usage"]["input_tokens"]
                     .as_i64()
                     .unwrap_or(0);
@@ -271,6 +257,8 @@ pub async fn stream_with_progress(
             }
             if event["type"] == "message_delta" { on_progress("usage", json!({"output":if event["usage"]["output_tokens"].is_i64(){"provider"}else{"unavailable"}}).to_string());
                 if let Some(reason)=event["delta"]["stop_reason"].as_str(){finish_reason=reason.into();}
+                if !finish_reason.is_empty() && finish_at.is_none(){finish_at=Some(std::time::Instant::now());}
+                if event["usage"]["output_tokens"].is_i64(){call_origin["output"]=json!("provider");}
                 output_tokens = event["usage"]["output_tokens"]
                     .as_i64()
                     .unwrap_or(output_tokens);
@@ -296,6 +284,7 @@ pub async fn stream_with_progress(
                     }
                 }
                 if let Some(thought) = event["delta"]["thinking"].as_str() {
+                    call_origin["thinking"]=json!("estimated");
                     reasoning_content.push_str(thought); on_progress("thinking", thought.to_string());
                     thinking_tokens += (thought.chars().count() as i64 + 3) / 4;
                     on_progress("usage_values",json!({"thinking":thinking_tokens}).to_string());
@@ -311,7 +300,13 @@ pub async fn stream_with_progress(
             break;
         }
     }
-    if !cancelled.load(Ordering::Relaxed) && !terminal && finish_reason.is_empty(){return Err(anyhow!("流式连接提前关闭，未收到回答完成标记"))}
+    if !cancelled.load(Ordering::Relaxed) && !terminal && finish_reason.is_empty(){return Err(crate::recovery::fail(crate::recovery::Kind::Stream,"流式连接提前关闭，未收到回答完成标记"))}
+    Ok(())}.await;
+    if call_origin["thinking"]=="estimated"{thinking_tokens=(reasoning_content.chars().count() as i64+3)/4;}
+    if call_origin["output"]!="provider" && (!answer.is_empty() || thinking_tokens>0){call_origin["output"]=json!("estimated");output_tokens=(answer.chars().count() as i64+3)/4+thinking_tokens;}
+    crate::recovery::report_call(&mut on_progress,call_started,[input_tokens,output_tokens,thinking_tokens],call_origin,&parsed,&finish_reason);
+    if let Err(error)=parsed {if finish_reason.is_empty() || matches!(crate::recovery::kind(&error),crate::recovery::Kind::Safety|crate::recovery::Kind::Context){return Err(error)}}
+
     on_progress("finish",if cancelled.load(Ordering::Relaxed){"cancelled".into()}else if finish_reason.is_empty(){"end_turn".into()}else{finish_reason});
     Ok((
         answer,

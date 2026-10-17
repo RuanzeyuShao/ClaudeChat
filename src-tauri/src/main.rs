@@ -2,6 +2,7 @@
 
 mod commands;
 mod generation;
+mod recovery;
 mod links;
 mod media;
 mod connection;

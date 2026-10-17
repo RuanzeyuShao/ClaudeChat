@@ -85,6 +85,7 @@ impl ProviderAdapter {
                 .as_object()
                 .ok_or_else(|| anyhow!("附加请求参数必须是 JSON 对象"))?;
             for (key, value) in options {
+                if key=="client_max_output_tokens" {continue}
                 if matches!(
                     key.as_str(),
                     "model" | "messages" | "system" | "tools" | "stream"
@@ -102,6 +103,9 @@ impl ProviderAdapter {
                 }
             }
         }
+        if body.get("max_completion_tokens").is_some(){body.as_object_mut().unwrap().remove("max_tokens");}
+        crate::recovery::output_budget(body,options,self==Self::Anthropic)?;
+        if self==Self::OpenAI {if let Some(max)=body.as_object_mut().unwrap().remove("max_tokens"){body["max_completion_tokens"]=max;}}
         Ok(())
     }
     pub fn configure_search(self, body: &mut Value) -> Result<()> {
@@ -151,12 +155,12 @@ pub async fn send_cancellable(
     cancelled: &std::sync::atomic::AtomicBool,
 ) -> Result<reqwest::Response> {
     if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
-        return Err(anyhow!("已停止生成"));
+        return Err(crate::recovery::fail(crate::recovery::Kind::Cancelled,"已停止生成"));
     }
     let pending = request.send();
     tokio::pin!(pending);
     loop {
-        tokio::select! {response=&mut pending=>return Ok(response?),_=tokio::time::sleep(std::time::Duration::from_millis(100))=>{if cancelled.load(std::sync::atomic::Ordering::Relaxed){return Err(anyhow!("已停止生成"));}}}
+        tokio::select! {response=&mut pending=>return Ok(response?),_=tokio::time::sleep(std::time::Duration::from_millis(100))=>{if cancelled.load(std::sync::atomic::Ordering::Relaxed){return Err(crate::recovery::fail(crate::recovery::Kind::Cancelled,"已停止生成"));}}}
     }
 }
 

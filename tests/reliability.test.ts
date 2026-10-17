@@ -38,7 +38,7 @@ for(const failure of ['missing model','missing key','invalid search'] as const){
   expect(api.sendMessage).not.toHaveBeenCalled();expect(chat.loading).toBe(false);expect(chat.error).not.toBe('')
  })
 }
-for(const operation of ['edit','continue'] as const){
+for(const operation of ['edit'] as const){
  it(`restores persisted and visible leaf after ${operation} API failure, retaining failed branch`,async()=>{
   const chat=useChatStore(),original=structuredClone(messages)
   vi.mocked(api.sendMessage).mockImplementation(async(_id,content,_settings,_persist,_attachments,parentId)=>{

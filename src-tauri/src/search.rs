@@ -27,6 +27,14 @@ pub async fn searxng(base_url:&str,query:&str,cancelled:Arc<AtomicBool>)->Result
   }).take(5).collect())
 }
 
+pub fn select_sources(sources:Vec<Source>)->Vec<Source> {
+  let mut seen=std::collections::HashSet::new();
+  sources.into_iter().filter(|s|{
+    let Ok(mut url)=reqwest::Url::parse(&s.url) else{return false};
+    if !matches!(url.scheme(),"http"|"https"){return false}url.set_fragment(None);
+    seen.insert(url.to_string())
+  }).take(24).collect()
+}
 pub fn completion_status(enabled:bool,external_completed:bool,sources:&[Source],events:&[Value])->&'static str {
   if !enabled{return "off"}
   if events.iter().any(search_failed){return "failed"}

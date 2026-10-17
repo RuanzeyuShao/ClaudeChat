@@ -66,7 +66,9 @@ pub fn serve_observed(responses:Vec<(u16,&'static str,String)>)->(String,thread:
                     }
                 }
             }
-            let headers=format!("HTTP/1.1 {} OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",status,kind,body.len());
+            // Deliberately advertise missing bytes to exercise a real reqwest body/transport failure.
+            let size=body.len()+if kind.ends_with("; truncated"){100}else{0};
+            let headers=format!("HTTP/1.1 {} OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",status,kind,size);
             socket.write_all(headers.as_bytes()).unwrap();
             socket.write_all(body.as_bytes()).unwrap();
         }

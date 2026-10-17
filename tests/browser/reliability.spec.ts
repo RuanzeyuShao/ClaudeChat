@@ -14,7 +14,7 @@ test('invalid search configuration does not erase history or dismiss an unsent e
  await page.getByRole('textbox',{name:'编辑历史消息'}).fill('改写的问题');await page.getByRole('button',{name:'创建分支并重发'}).click()
  await expect(page.getByRole('textbox',{name:'编辑历史消息'})).toHaveValue('改写的问题');await expect(page.locator('.message.assistant .markdown')).toHaveText('原始回答');await expect(page.locator('.request-error')).toContainText('SearXNG')
  await page.getByRole('button',{name:'取消',exact:true}).click();await expect(page.locator('.message.user .markdown')).toHaveText('原始问题')
- await page.locator('.message.assistant').getByRole('button',{name:'消息更多操作'}).click();await page.getByRole('menuitem',{name:'继续生成'}).click();await expect(page.locator('.message')).toHaveCount(2)
+ await page.locator('.message.assistant').getByRole('button',{name:'消息更多操作'}).click();await page.getByRole('menuitem',{name:'检查并继续'}).click();await expect(page.locator('.message')).toHaveCount(2)
 })
 test('deleted-profile preset reports failure and keeps the preset dialog open',async({page})=>{
  await page.goto('/',{waitUntil:'domcontentloaded'});await seed(page)
@@ -24,7 +24,7 @@ test('deleted-profile preset reports failure and keeps the preset dialog open',a
  await expect(page.locator('.message')).toHaveCount(2)
 })
 test('retained Today dashboard refreshes across month boundary and keeps model filters',async({page})=>{
- await page.clock.install({time:new Date(2026,9,31,23,59,59)});await page.goto('/',{waitUntil:'domcontentloaded'});await seed(page)
+ await page.clock.install({time:new Date(2026,9,31,23,50,0)});await page.goto('/',{waitUntil:'domcontentloaded'});await seed(page)
  await page.evaluate(async()=>{
   const path='/src/stores/chat.ts';const {useChatStore}=await import(path);const chat=useChatStore()
   chat.usage=[{id:'old',conversationId:chat.activeId,profileId:'p',profileName:'profile',model:'model',inputTokens:10,outputTokens:5,thinkingTokens:0,durationMs:100,estimatedCost:0,createdAt:new Date(2026,9,31,23,30).toISOString()}]

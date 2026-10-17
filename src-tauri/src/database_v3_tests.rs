@@ -1,6 +1,24 @@
 use super::*;
 
 #[test]
+fn checkpoints_resume_one_node_preserve_tree_and_reopen_with_separate_usage(){
+    let db=legacy();migrate_v3(&db.conn).unwrap();db.set_leaf("c",Some("u")).unwrap();
+    let sources=vec![Source{citation:"7".into(),title:"真实来源".into(),url:"https://source.test".into(),snippet:"正文".into(),anchor:None}];
+    let mut origin=serde_json::json!({"provider":"openai","model":"original","usageIds":["call1","call2"],"generation":{"status":"interrupted","reason":"process_interrupted","continuations":1}});
+    db.checkpoint_response("c","resumed","已经生成",&sources,"已有思考",&serde_json::json!({"status":"completed"}),&origin).unwrap();
+    let count=db.messages("c").unwrap().len();
+    db.checkpoint_response("c","resumed","已经生成并继续",&sources,"已有思考并继续",&serde_json::json!({"status":"completed"}),&origin).unwrap();
+    assert_eq!(db.messages("c").unwrap().len(),count);assert_eq!(db.active_messages("c").unwrap().len(),2);assert_eq!(db.active_messages("c").unwrap()[1].id,"resumed");
+    assert!(db.checkpoint_response("c","u","cannot overwrite user",&[],"",&serde_json::json!({}),&origin).is_err());
+    db.conn.execute_batch("CREATE TRIGGER deny_checkpoint BEFORE UPDATE ON messages WHEN NEW.id='resumed' BEGIN SELECT RAISE(ABORT,'disk full'); END;").unwrap();
+    origin["generation"]["status"]=serde_json::json!("complete");assert!(db.checkpoint_response("c","resumed","discarded",&[],"",&serde_json::json!({}),&origin).is_err());
+    assert_eq!(db.active_messages("c").unwrap()[1].content,"已经生成并继续");assert_eq!(db.extension("v4:requestOrigins").unwrap()["reply:resumed"]["generation"]["status"],"interrupted");
+    let path=std::env::temp_dir().join(format!("claudechat-checkpoint-{}.db",uuid::Uuid::new_v4()));db.conn.execute("VACUUM INTO ?",[path.to_str().unwrap()]).unwrap();
+    let reopened=Database{conn:Connection::open(&path).unwrap()};let last=reopened.active_messages("c").unwrap().pop().unwrap();assert_eq!(last.content,"已经生成并继续");assert_eq!(last.reasoning_content,"已有思考并继续");assert_eq!(last.sources.unwrap()[0].citation,"7");assert_eq!(last.usage_id.as_deref(),Some("reply:resumed"));
+    reopened.set_leaf("c",Some("a")).unwrap();assert_eq!(reopened.active_messages("c").unwrap()[1].content,"原回答");drop(reopened);std::fs::remove_file(path).unwrap();
+}
+
+#[test]
 fn eight_palette_modes_restore_across_history_selection_and_database_reopen(){
     let db=legacy();migrate_v3(&db.conn).unwrap();
     let before=serde_json::to_value(db.active_messages("c").unwrap()).unwrap();

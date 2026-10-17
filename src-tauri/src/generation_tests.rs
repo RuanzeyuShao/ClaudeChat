@@ -269,7 +269,7 @@ async fn interrupted_stream_keeps_partial_text_reasoning_sources_and_reported_to
         assert_eq!(visible, result.0);
         assert_eq!(result.6, "已有思考");
         assert_eq!(result.2, 7);
-        assert_eq!(result.3, 0);
+        assert!(result.3>0); // Missing stream usage is explicitly estimated, never reported as measured zero.
         assert_eq!(result.1.len(), 1);
         assert_eq!(completion["status"], "interrupted");
         assert!(completion["error"].as_str().unwrap().contains("完成标记"));
