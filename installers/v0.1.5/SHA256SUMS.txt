@@ -1,1 +1,1 @@
-fc388c3475f834c2c6f1a014df7f3d27772302c3d856c8db9440f87c8d50ba6c  ClaudeChat_0.1.5_x64-setup.exe
+b798fed64fcfbf987301f7c2b299c1a9dd1e04c996776e3a4e5a8472eba7c3a0  ClaudeChat_0.1.5_x64-setup.exe
