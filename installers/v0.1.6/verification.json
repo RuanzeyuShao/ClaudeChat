@@ -1,0 +1,37 @@
+{
+  "version": "0.1.6",
+  "date": "2026-10-18",
+  "sourceCommit": "d9299fa59427d288e004d493335c529015dc5f69",
+  "installerSha256": "84a4fd74879ef911f768ffd7ac31ba6872aa07670d15b8e9a846e912657f2ad1",
+  "checks": [
+    {
+      "command": "npm test",
+      "passed": 109
+    },
+    {
+      "command": "cargo test --manifest-path src-tauri/Cargo.toml",
+      "passed": 99
+    },
+    {
+      "command": "npm run test:ui",
+      "passed": 103
+    },
+    {
+      "command": "npm run test:ui -- tests/browser/v016.spec.ts tests/browser/preferences-v015.spec.ts tests/browser/composer-follow.spec.ts",
+      "passed": 14
+    },
+    {
+      "command": "npm run tauri:build -- --bundles nsis",
+      "status": "passed"
+    },
+    {
+      "command": "node scripts/native-startup-smoke.mjs src-tauri/target-v014/release/claude-chat.exe",
+      "status": "passed"
+    },
+    {
+      "command": "node scripts/native-recovery-smoke.mjs src-tauri/target-v014/release/claude-chat.exe",
+      "status": "passed"
+    }
+  ],
+  "nativeIsolation": "Explicit --data-dir to temporary database directory; inline mock API keys and localhost mock server; no real API usage or system key writes"
+}
