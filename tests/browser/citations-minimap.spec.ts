@@ -44,7 +44,7 @@ for(const sample of [{theme:'light',width:1440,height:900},{theme:'dark',width:8
  const paused=await list.evaluate(n=>n.scrollTop);await page.evaluate(async()=>{const path='/src/stores/chat.ts';const {useChatStore}=await import(path);useChatStore().active.messages.at(-1).content+='流式新增内容。'.repeat(100)});await expect.poll(()=>list.evaluate(n=>n.scrollTop)).toBeCloseTo(paused,0)
  await rail.hover({position:{x:12,y:10}});const beforeWheel=await list.evaluate(n=>n.scrollTop);await page.mouse.wheel(0,80);await expect.poll(()=>list.evaluate(n=>n.scrollTop)).toBeGreaterThan(beforeWheel);await expect(page.getByRole('tooltip')).toHaveCount(0);await leaveRail(page)
  await page.getByRole('button',{name:'折叠历史导航'}).click();await expect(rail).toHaveCount(0);await page.getByRole('button',{name:'展开历史导航'}).click();await expect(rail).toBeVisible();await leaveRail(page)
- mkdirSync('dist-release/v0.1.5/screenshots',{recursive:true});await page.screenshot({path:`dist-release/v0.1.5/screenshots/minimap-six-${sample.theme}-${sample.width}.png`})
+ mkdirSync('dist-release/v0.1.6/screenshots',{recursive:true});await page.screenshot({path:`dist-release/v0.1.6/screenshots/minimap-six-${sample.theme}-${sample.width}.png`})
  await page.evaluate(async()=>{const path='/src/stores/chat.ts';const {useChatStore}=await import(path);useChatStore().active.messages=[{id:'other-branch',role:'assistant',content:'短分支',createdAt:'1'}]});await expect(rail).toHaveCount(0);await expect(page.getByRole('tooltip')).toHaveCount(0)
 })
 
@@ -71,7 +71,7 @@ test('long user questions offer the complete original, and hover survives stream
  await page.setViewportSize({width:1100,height:850});await page.emulateMedia({reducedMotion:'no-preference'});await seed(page)
  const full='这是必须完整保存的用户问题。'.repeat(120)+'完整问题结束标记';await page.evaluate(async text=>{const path='/src/stores/chat.ts';const {useChatStore}=await import(path);useChatStore().active.messages[0].content=text},full)
  const rail=page.locator('.minimap-rail');await rail.focus();await page.keyboard.press('Home');await expect.poll(()=>page.locator('.messages').evaluate(n=>n.scrollTop)).toBeLessThan(30)
- await rail.hover({position:{x:12,y:5}});await expect(page.getByRole('tooltip')).toContainText('点击该横线查看完整问题');await expect(page.getByRole('tooltip')).toContainText('这是必须完整保存的用户问题。');await page.screenshot({path:'dist-release/v0.1.5/screenshots/minimap-full-question.png'})
+ await rail.hover({position:{x:12,y:5}});await expect(page.getByRole('tooltip')).toContainText('点击该横线查看完整问题');await expect(page.getByRole('tooltip')).toContainText('这是必须完整保存的用户问题。');await page.screenshot({path:'dist-release/v0.1.6/screenshots/minimap-full-question.png'})
  await page.evaluate(()=>{(window as any).previewNode=document.querySelector('.minimap-preview')})
  await page.evaluate(async()=>{const path='/src/stores/chat.ts';const {useChatStore}=await import(path);useChatStore().active.messages.at(-1).content+='新增段落。'.repeat(120)});await page.waitForTimeout(250)
  await expect(page.getByRole('tooltip')).toBeVisible();expect(await page.evaluate(()=>(window as any).previewNode===document.querySelector('.minimap-preview'))).toBe(true)

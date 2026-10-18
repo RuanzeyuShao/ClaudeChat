@@ -54,6 +54,6 @@ for(const sample of [{width:1440,height:900,scale:1,theme:'light'},{width:800,he
   await page.locator('.messages').evaluate(el=>{el.dispatchEvent(new WheelEvent('wheel',{deltaY:-80,bubbles:true}));el.scrollTop-=80})
   const latest=page.getByRole('button',{name:'回到最新消息',exact:true}),status=page.locator('.request-status');await expect(latest).toBeVisible();await expect(status).toHaveText('已完成')
   const latestBox=await latest.boundingBox(),statusBox=await status.boundingBox();expect(latestBox!.y+latestBox!.height/2).toBeCloseTo(statusBox!.y+statusBox!.height/2,0);expect(latestBox!.x+latestBox!.width).toBeLessThan(statusBox!.x)
-  mkdirSync('dist-release/v0.1.5/screenshots',{recursive:true});await page.screenshot({path:`dist-release/v0.1.5/screenshots/composer-notices-${sample.theme}-${sample.scale}.png`})
+  mkdirSync('dist-release/v0.1.6/screenshots',{recursive:true});await page.screenshot({path:`dist-release/v0.1.6/screenshots/composer-notices-${sample.theme}-${sample.scale}.png`})
  }finally{await context.close()}
 })

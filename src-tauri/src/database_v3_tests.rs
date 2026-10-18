@@ -65,7 +65,7 @@ fn v015_preferences_survive_database_reopen_and_preserve_legacy_history() {
     drop(reopened);std::fs::remove_file(path).unwrap();
 }
 
-fn legacy() -> Database {
+pub(super) fn legacy() -> Database {
     let conn = Connection::open_in_memory().unwrap();
     conn.execute_batch("CREATE TABLE conversations(id TEXT PRIMARY KEY,title TEXT,model TEXT,created_at TEXT,updated_at TEXT,system_prompt TEXT DEFAULT '');
  CREATE TABLE messages(id TEXT PRIMARY KEY,conversation_id TEXT,role TEXT,content TEXT,created_at TEXT,metadata TEXT);
@@ -255,7 +255,7 @@ fn credential_failure_does_not_modify_profile() {
 }
 #[test]
 fn deleting_active_profile_clears_connections_but_keeps_history() {
-    let db = legacy();
+    let db = legacy();migrate_v3(&db.conn).unwrap();
     let secrets = secrets();
     db.set_setting("profile_id", "p").unwrap();
     db.set_setting("base_url", "https://example.com").unwrap();
@@ -293,7 +293,8 @@ fn failed_delete_restores_secret_and_model_prices() {
 #[test]
 fn upgrade_preserves_all_legacy_data_and_is_repeatable() {
     let db = legacy();
-    let before = db.messages("c").unwrap();
+    let before_content:String=db.conn.query_row("SELECT content FROM messages WHERE id='u'",[],|r|r.get(0)).unwrap();
+    let before_attachment:String=db.conn.query_row("SELECT text FROM attachments WHERE id='file'",[],|r|r.get(0)).unwrap();
     let usage = serde_json::to_string(&db.usage().unwrap()).unwrap();
     let profiles = serde_json::to_string(&db.profiles().unwrap()).unwrap();
     let prices = serde_json::to_string(&db.model_prices().unwrap()).unwrap();
@@ -301,8 +302,8 @@ fn upgrade_preserves_all_legacy_data_and_is_repeatable() {
     migrate_v3(&db.conn).unwrap();
     let after = db.active_messages("c").unwrap();
     assert_eq!(after.len(), 2);
-    assert_eq!(after[0].content, before[0].content);
-    assert_eq!(after[0].attachments[0].text, before[0].attachments[0].text);
+    assert_eq!(after[0].content, before_content);
+    assert_eq!(after[0].attachments[0].text.as_deref(), Some(before_attachment.as_str()));
     assert_eq!(db.attachment_data("file").unwrap().as_deref(), Some("b2xk"));
     assert_eq!(
         after[1].sources.as_ref().unwrap()[0].url,
@@ -388,7 +389,7 @@ fn failed_migration_rolls_back_schema_and_version() {
         .unwrap();
     assert_eq!(version, 2);
     assert!(db.conn.prepare("SELECT * FROM message_nodes").is_err());
-    assert_eq!(db.messages("c").unwrap().len(), 2);
+    assert_eq!(db.conn.query_row("SELECT count(*) FROM messages WHERE conversation_id='c'",[],|r|r.get::<_,i64>(0)).unwrap(),2);
 }
 
 #[test]
@@ -469,7 +470,7 @@ fn connection_failure_rolls_back_global_conversation_snapshot_and_reply_identity
     let before=db.extension("v4:conversationConnection:c").unwrap();
     db.conn.execute_batch("CREATE TRIGGER reject_connection BEFORE UPDATE ON settings WHEN NEW.key='v4:conversationConnection:c' BEGIN SELECT RAISE(ABORT,'simulated disk error'); END;").unwrap();
     assert!(crate::connection::save(&db,choice(&db,"switch","new-model"),Some("c")).is_err());assert_eq!(crate::connection::read(&db).unwrap().model,"original");assert_eq!(db.conversations().unwrap()[0].model,"original");assert_eq!(db.extension("v4:conversationConnection:c").unwrap(),before);
-    let mut usage=db.usage().unwrap().remove(0);usage.id="new".into();db.conn.execute_batch("CREATE TRIGGER reject_origin BEFORE INSERT ON settings WHEN NEW.key='v4:requestOrigins' BEGIN SELECT RAISE(ABORT,'simulated disk error'); END;").unwrap();
+    let mut usage=db.usage().unwrap().remove(0);usage.id="new".into();db.conn.execute_batch("CREATE TRIGGER reject_origin BEFORE INSERT ON origins WHEN NEW.kind='request' BEGIN SELECT RAISE(ABORT,'simulated disk error'); END;").unwrap();
     assert!(db.save_response_with_origin("c","new reply",&vec![],&serde_json::json!({}),&usage,"thought",Some(&before)).is_err());assert_eq!(db.messages("c").unwrap().len(),2);assert_eq!(db.usage().unwrap().len(),1);
 }
 #[test]

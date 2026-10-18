@@ -110,11 +110,95 @@ pub struct MessageReference {
 pub struct Database {
     conn: Connection,
 }
+
+fn migrate_v6(conn:&Connection)->Result<()> {
+    conn.execute_batch("CREATE TABLE IF NOT EXISTS origins(kind TEXT NOT NULL,id TEXT NOT NULL,value TEXT NOT NULL,PRIMARY KEY(kind,id)); CREATE TABLE IF NOT EXISTS saved_drafts(conversation_id TEXT PRIMARY KEY,value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS draft_files(id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL,value TEXT NOT NULL); CREATE INDEX IF NOT EXISTS idx_usage_time ON usage_records(created_at DESC); CREATE INDEX IF NOT EXISTS idx_draft_owner ON draft_files(conversation_id);")?;
+    for(key,kind)in [("v4:requestOrigins","request"),("v4:usageOrigins","usage")] {
+        let raw:Option<String>=conn.query_row("SELECT value FROM settings WHERE key=?",[key],|r|r.get(0)).optional()?;
+        if let Some(raw)=raw {let map:serde_json::Value=serde_json::from_str(&raw)?;if let Some(map)=map.as_object(){for(id,value)in map{conn.execute("INSERT OR IGNORE INTO origins VALUES(?,?,?)",params![kind,id,value.to_string()])?;}}conn.execute("DELETE FROM settings WHERE key=?",[key])?;}
+    }
+    let raw:Option<String>=conn.query_row("SELECT value FROM settings WHERE key='v4:drafts'",[],|r|r.get(0)).optional()?;
+    if let Some(raw)=raw {
+        let drafts:serde_json::Value=serde_json::from_str(&raw)?;
+        if let Some(map)=drafts.as_object(){for(id,draft)in map {
+            let exists:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM conversations WHERE id=?)",[id],|r|r.get(0))?;if !exists{continue}
+            let mut draft=draft.clone();
+            if let Some(attachments)=draft["attachments"].as_array_mut(){for attachment in attachments {
+                if let Some(file_id)=attachment["id"].as_str(){conn.execute("INSERT OR IGNORE INTO draft_files VALUES(?,?,?)",params![file_id,id,attachment.to_string()])?;}
+                attachment.as_object_mut().map(|m|m.remove("data"));
+                if let Some(text)=attachment["text"].as_str(){attachment["text"]=serde_json::json!(text.chars().take(16000).collect::<String>());}
+            }}
+            conn.execute("INSERT OR IGNORE INTO saved_drafts VALUES(?,?)",params![id,draft.to_string()])?;
+        }}
+        conn.execute("DELETE FROM settings WHERE key='v4:drafts'",[])?;
+    }
+    Ok(())
+}
+
 impl Database {
-    pub fn open() -> Result<Self> {
-        let dir = std::env::var("APPDATA").unwrap_or_else(|_| ".".into());
-        let path = std::path::Path::new(&dir).join("ClaudeChat");
+    pub fn cache_attachment(&self,conversation_id:&str,attachment:&Attachment)->Result<()> {
+        let exists:bool=self.conn.query_row("SELECT EXISTS(SELECT 1 FROM conversations WHERE id=?)",[conversation_id],|r|r.get(0))?;
+        anyhow::ensure!(exists,"会话不存在");
+        self.conn.execute("INSERT INTO draft_files VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET value=excluded.value",params![attachment.id,conversation_id,serde_json::to_string(attachment)?])?;Ok(())
+    }
+    pub fn hydrate_attachment(&self,conversation_id:&str,attachment:&Attachment)->Result<Attachment>{
+        let raw:Option<String>=self.conn.query_row("SELECT value FROM draft_files WHERE id=? AND conversation_id=?",params![attachment.id,conversation_id],|r|r.get(0)).optional()?;
+        Ok(raw.map(|s|serde_json::from_str(&s)).transpose()?.unwrap_or_else(||attachment.clone()))
+    }
+    pub fn drafts(&self)->Result<serde_json::Value>{
+        let mut q=self.conn.prepare("SELECT conversation_id,value FROM saved_drafts")?;
+        let rows=q.query_map([],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?)))?;
+        let mut map=serde_json::Map::new();for row in rows{let(id,value)=row?;map.insert(id,serde_json::from_str(&value)?);}Ok(map.into())
+    }
+    pub fn save_draft(&self,id:&str,mut draft:serde_json::Value)->Result<()> {
+        anyhow::ensure!(draft["text"].is_string() && draft["attachments"].is_array(),"草稿格式无效");
+        let files=draft["attachments"].as_array_mut().unwrap();anyhow::ensure!(files.len()<=8,"每条消息最多 8 个附件");
+        for file in files {if let Some(map)=file.as_object_mut(){map.remove("data");}if let Some(text)=file["text"].as_str(){file["text"]=serde_json::json!(text.chars().take(16000).collect::<String>());}}
+        let raw=draft.to_string();anyhow::ensure!(raw.len()<=256*1024,"单条草稿最多 256 KB，请缩短文字");
+        let tx=self.conn.unchecked_transaction()?;
+        let exists:bool=self.conn.query_row("SELECT EXISTS(SELECT 1 FROM conversations WHERE id=?)",[id],|r|r.get(0))?;
+        anyhow::ensure!(exists,"会话不存在，草稿未保存");
+        self.conn.execute("INSERT INTO saved_drafts VALUES(?,?) ON CONFLICT(conversation_id) DO UPDATE SET value=excluded.value",params![id,raw])?;
+        tx.commit()?;Ok(())
+    }
+    pub fn cleanup(&self)->Result<usize>{
+        let tx=self.conn.unchecked_transaction()?;let mut count=0;
+        count+=self.conn.execute("DELETE FROM draft_files WHERE NOT EXISTS(SELECT 1 FROM saved_drafts d,json_each(d.value,'$.attachments') a WHERE d.conversation_id=draft_files.conversation_id AND json_extract(a.value,'$.id')=draft_files.id)",[])?;
+        count+=self.conn.execute("DELETE FROM attachments WHERE message_id NOT IN (SELECT id FROM messages)",[])?;
+        count+=self.conn.execute("DELETE FROM origins WHERE id NOT IN (SELECT id FROM usage_records) AND id NOT IN (SELECT usage_id FROM message_nodes WHERE usage_id IS NOT NULL)",[])?;
+        count+=self.conn.execute("DELETE FROM settings WHERE (key LIKE 'v4:conversationConnection:%' AND substr(key,27) NOT IN (SELECT id FROM conversations)) OR (key LIKE 'v6:context:%' AND substr(key,12) NOT IN (SELECT id FROM conversations))",[])?;
+        tx.commit()?;Ok(count)
+    }
+    pub fn delete_turn(&self,conversation_id:&str,message_id:&str)->Result<()> {
+        let all=self.messages(conversation_id)?;let target=all.iter().find(|m|m.id==message_id).ok_or_else(||anyhow::anyhow!("消息不存在"))?;
+        let root=if target.role=="assistant"{all.iter().find(|m|Some(&m.id)==target.parent_id.as_ref() && m.role=="user").unwrap_or(target)}else{target};
+        let mut removed=std::collections::HashSet::from([root.id.clone()]);
+        loop{let before=removed.len();for m in &all{if m.parent_id.as_ref().is_some_and(|id|removed.contains(id)){removed.insert(m.id.clone());}}if before==removed.len(){break}}
+        let tx=self.conn.unchecked_transaction()?;
+        if self.leaf(conversation_id)?.is_some_and(|id|removed.contains(&id)){self.set_leaf(conversation_id,root.parent_id.as_deref())?;}
+        for id in &removed {
+            self.conn.execute("DELETE FROM origins WHERE id=(SELECT usage_id FROM message_nodes WHERE message_id=?)",[id])?;
+            self.conn.execute("DELETE FROM attachments WHERE message_id=?",[id])?;
+            self.conn.execute("DELETE FROM message_nodes WHERE message_id=?",[id])?;
+            self.conn.execute("DELETE FROM messages WHERE id=?",[id])?;
+        }
+        self.conn.execute("UPDATE conversations SET updated_at=? WHERE id=?",params![Utc::now().to_rfc3339(),conversation_id])?;
+        tx.commit()?;Ok(())
+    }
+    pub fn clear_all(&self)->Result<()> {
+        let tx=self.conn.unchecked_transaction()?;
+        self.conn.execute_batch("DELETE FROM attachments;DELETE FROM message_nodes;DELETE FROM messages;DELETE FROM conversation_tree;DELETE FROM conversations;DELETE FROM usage_records;DELETE FROM origins;DELETE FROM saved_drafts;DELETE FROM draft_files;DELETE FROM model_prices;DELETE FROM api_profiles;DELETE FROM settings;")?;
+        tx.commit()?;Ok(())
+    }
+    pub fn open(path: &std::path::Path, legacy: &std::path::Path) -> Result<Self> {
         std::fs::create_dir_all(&path)?;
+        let target=path.join("claudechat.db");
+        if !target.exists() && legacy.join("claudechat.db").exists() {
+            let old=Connection::open(legacy.join("claudechat.db"))?;
+            let temporary=path.join(format!("migration-{}.db",Uuid::new_v4()));
+            old.execute("VACUUM INTO ?",[temporary.to_string_lossy().as_ref()])?;
+            std::fs::rename(temporary,&target)?;
+        }
         let conn = Connection::open(path.join("claudechat.db"))?;
         conn.execute_batch("CREATE TABLE IF NOT EXISTS conversations (id TEXT PRIMARY KEY, title TEXT NOT NULL, model TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL, metadata TEXT); CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS attachments (id TEXT PRIMARY KEY, message_id TEXT NOT NULL, name TEXT NOT NULL, mime TEXT NOT NULL, kind TEXT NOT NULL, size INTEGER NOT NULL, text TEXT, data TEXT);")?;
         if !conn
@@ -162,48 +246,22 @@ impl Database {
         Ok(c)
     }
     pub fn messages(&self, id: &str) -> Result<Vec<Message>> {
-        let mut statement = self.conn.prepare("SELECT id,role,content,created_at,metadata FROM messages WHERE conversation_id=? ORDER BY created_at")?;
+        let mut statement = self.conn.prepare("SELECT m.id,m.role,m.content,m.created_at,m.metadata,n.parent_id,n.refs,n.search_trace,n.usage_id,n.reasoning_content FROM messages m LEFT JOIN message_nodes n ON n.message_id=m.id WHERE m.conversation_id=? ORDER BY m.created_at,m.rowid")?;
         let rows = statement.query_map([id], |row| {
-            let metadata: Option<String> = row.get(4)?;
-            Ok(Message {
-                usage_id: None,
-                reasoning_content: String::new(),
-                parent_id: None,
-                references: vec![],
-                search_trace: None,
-                id: row.get(0)?,
-                role: row.get(1)?,
-                content: row.get(2)?,
-                created_at: row.get(3)?,
-                sources: metadata.and_then(|value| serde_json::from_str(&value).ok()),
-                attachments: vec![],
-            })
+            let metadata:Option<String>=row.get(4)?;
+            let refs:Option<String>=row.get(6)?;
+            let trace:Option<String>=row.get(7)?;
+            Ok(Message {id:row.get(0)?,role:row.get(1)?,content:row.get(2)?,created_at:row.get(3)?,
+                sources:metadata.and_then(|v|serde_json::from_str(&v).ok()),parent_id:row.get(5)?,
+                references:refs.and_then(|v|serde_json::from_str(&v).ok()).unwrap_or_default(),
+                search_trace:trace.and_then(|v|serde_json::from_str(&v).ok()),usage_id:row.get(8)?,
+                reasoning_content:row.get::<_,Option<String>>(9)?.unwrap_or_default(),attachments:vec![]})
         })?;
-        let mut messages = rows.collect::<std::result::Result<Vec<_>, _>>()?;
-        for message in &mut messages {
-            let node:Option<(Option<String>,String,Option<String>,Option<String>,String)>=self.conn.query_row("SELECT parent_id,refs,search_trace,usage_id,reasoning_content FROM message_nodes WHERE message_id=?",[&message.id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).ok();
-            if let Some((parent, refs, trace, usage_id, reasoning_content)) = node {
-                message.usage_id = usage_id;
-                message.reasoning_content = reasoning_content;
-                message.parent_id = parent;
-                message.references = serde_json::from_str(&refs)?;
-                message.search_trace = trace.map(|v| serde_json::from_str(&v)).transpose()?;
-            }
-            let mut query=self.conn.prepare("SELECT id,name,mime,kind,size,text,CASE WHEN kind='image' THEN data ELSE NULL END FROM attachments WHERE message_id=?")?;
-            message.attachments = query
-                .query_map([&message.id], |r| {
-                    Ok(Attachment {
-                        id: r.get(0)?,
-                        name: r.get(1)?,
-                        mime: r.get(2)?,
-                        kind: r.get(3)?,
-                        size: r.get(4)?,
-                        text: r.get(5)?,
-                        data: r.get(6)?,
-                    })
-                })?
-                .collect::<std::result::Result<Vec<_>, _>>()?;
-        }
+        let mut messages=rows.collect::<std::result::Result<Vec<_>,_>>()?;
+        let positions:std::collections::HashMap<_,_>=messages.iter().enumerate().map(|(i,m)|(m.id.clone(),i)).collect();
+        let mut query=self.conn.prepare("SELECT a.message_id,a.id,a.name,a.mime,a.kind,a.size,a.text,CASE WHEN a.kind='image' THEN a.data ELSE NULL END FROM attachments a JOIN messages m ON m.id=a.message_id WHERE m.conversation_id=? ORDER BY a.rowid")?;
+        let attachments=query.query_map([id],|r|Ok((r.get::<_,String>(0)?,Attachment{id:r.get(1)?,name:r.get(2)?,mime:r.get(3)?,kind:r.get(4)?,size:r.get(5)?,text:r.get(6)?,data:r.get(7)?})))?;
+        for row in attachments {let (owner,attachment)=row?;if let Some(index)=positions.get(&owner){messages[*index].attachments.push(attachment)}}
         Ok(messages)
     }
     pub fn add_message(
@@ -242,11 +300,19 @@ impl Database {
         Ok(())
     }
     fn record_request_origin(&self,id:&str,origin:&serde_json::Value)->Result<()> {
-        let mut origins=self.extension("v4:requestOrigins")?;
-        if origins.is_null(){origins=serde_json::json!({})}
-        anyhow::ensure!(origins.is_object(),"请求来源记录无效");
-        origins[id]=origin.clone();
-        self.set_setting("v4:requestOrigins",&origins.to_string())
+        self.set_origin("request",id,origin)
+    }
+    pub fn set_origin(&self,kind:&str,id:&str,value:&serde_json::Value)->Result<()> {
+        self.conn.execute("INSERT INTO origins(kind,id,value) VALUES(?,?,?) ON CONFLICT(kind,id) DO UPDATE SET value=excluded.value",params![kind,id,value.to_string()])?;Ok(())
+    }
+    pub fn origin(&self,kind:&str,id:&str)->Result<serde_json::Value>{
+        let raw:Option<String>=self.conn.query_row("SELECT value FROM origins WHERE kind=? AND id=?",params![kind,id],|r|r.get(0)).optional()?;
+        Ok(raw.map(|s|serde_json::from_str(&s)).transpose()?.unwrap_or(serde_json::Value::Null))
+    }
+    pub fn request_origins_for_conversation(&self,id:&str)->Result<serde_json::Value>{
+        let mut q=self.conn.prepare("SELECT o.id,o.value FROM origins o WHERE o.kind='request' AND o.id IN (SELECT n.usage_id FROM message_nodes n JOIN messages m ON m.id=n.message_id WHERE m.conversation_id=?)")?;
+        let rows=q.query_map([id],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?)))?;let mut map=serde_json::Map::new();
+        for row in rows{let(id,value)=row?;map.insert(id,serde_json::from_str(&value)?);}Ok(map.into())
     }
     /// Upsert a single assistant node. Checkpoints and the final result share the same identity.
     pub fn checkpoint_response(&self,conversation_id:&str,node_id:&str,content:&str,sources:&[Source],reasoning:&str,trace:&serde_json::Value,origin:&serde_json::Value)->Result<()> {
@@ -389,14 +455,16 @@ impl Database {
     }
     pub fn active_messages(&self, id: &str) -> Result<Vec<Message>> {
         let all = self.messages(id)?;
+        self.path_from(id, &all)
+    }
+    pub fn path_from(&self,id:&str,all:&[Message])->Result<Vec<Message>> {
+        let nodes:std::collections::HashMap<_,_>=all.iter().map(|m|(m.id.as_str(),m)).collect();
         let mut cursor = self.leaf(id)?;
         let mut path = vec![];
         let mut seen = std::collections::HashSet::new();
         while let Some(node) = cursor {
             anyhow::ensure!(seen.insert(node.clone()), "消息树存在循环");
-            let message = all
-                .iter()
-                .find(|m| m.id == node)
+            let message = nodes.get(node.as_str()).copied()
                 .ok_or_else(|| anyhow::anyhow!("消息节点不存在"))?;
             cursor = message.parent_id.clone();
             path.push(message.clone());
@@ -422,6 +490,11 @@ impl Database {
         Ok(())
     }
     pub fn extension(&self, key: &str) -> Result<serde_json::Value> {
+        if let Some(kind)=match key {"v4:requestOrigins"=>Some("request"),"v4:usageOrigins"=>Some("usage"),_=>None}{
+            let mut query=self.conn.prepare("SELECT id,value FROM origins WHERE kind=?")?;
+            let rows=query.query_map([kind],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?)))?;
+            let mut map=serde_json::Map::new();for row in rows{let(id,value)=row?;map.insert(id,serde_json::from_str(&value)?);}return Ok(map.into())
+        }
         Ok(self
             .setting(key)?
             .map(|s| serde_json::from_str(&s))
@@ -436,11 +509,10 @@ impl Database {
         Ok(())
     }
     pub fn attachment_data(&self, id: &str) -> Result<Option<String>> {
-        Ok(self
-            .conn
-            .query_row("SELECT data FROM attachments WHERE id=?", [id], |r| {
-                r.get(0)
-            })?)
+        let saved:Option<Option<String>>=self.conn.query_row("SELECT data FROM attachments WHERE id=?",[id],|r|r.get(0)).optional()?;
+        if let Some(value)=saved{return Ok(value)}
+        let raw:Option<String>=self.conn.query_row("SELECT value FROM draft_files WHERE id=?",[id],|r|r.get(0)).optional()?;
+        Ok(raw.map(|s|serde_json::from_str::<Attachment>(&s)).transpose()?.and_then(|a|a.data))
     }
     pub fn system_prompt(&self, id: &str) -> Result<String> {
         Ok(self.conn.query_row(
@@ -450,8 +522,10 @@ impl Database {
         )?)
     }
     pub fn search(&self, query: &str) -> Result<Vec<Conversation>> {
-        let needle = format!("%{}%", query.replace('%', "\\%").replace('_', "\\_"));
-        Ok(self.conversations()?.into_iter().filter(|c| self.conn.query_row("SELECT EXISTS(SELECT 1 FROM conversations c LEFT JOIN messages m ON m.conversation_id=c.id LEFT JOIN attachments a ON a.message_id=m.id WHERE c.id=?1 AND (c.title LIKE ?2 ESCAPE '\\' OR m.content LIKE ?2 ESCAPE '\\' OR a.text LIKE ?2 ESCAPE '\\'))",params![c.id,needle],|r|r.get::<_,i64>(0)).unwrap_or(0)!=0).collect())
+        let needle=format!("%{}%",query.replace('\\',"\\\\").replace('%',"\\%").replace('_',"\\_"));
+        let mut statement=self.conn.prepare("SELECT id,title,model,created_at,updated_at,system_prompt FROM conversations WHERE id IN (SELECT id FROM conversations WHERE title LIKE ?1 ESCAPE '\\' UNION SELECT conversation_id FROM messages WHERE content LIKE ?1 ESCAPE '\\' UNION SELECT m.conversation_id FROM attachments a JOIN messages m ON m.id=a.message_id WHERE a.text LIKE ?1 ESCAPE '\\') ORDER BY updated_at DESC LIMIT 50")?;
+        let rows=statement.query_map([needle],|r|Ok(Conversation{id:r.get(0)?,title:r.get(1)?,model:r.get(2)?,created_at:r.get(3)?,updated_at:r.get(4)?,system_prompt:r.get(5)?,messages:vec![]}))?;
+        Ok(rows.collect::<std::result::Result<Vec<_>,_>>()?)
     }
     pub fn rename(&self, id: &str, title: &str) -> Result<()> {
         self.conn.execute(
@@ -468,6 +542,11 @@ impl Database {
         Ok(())
     }
     pub fn delete(&self, id: &str) -> Result<()> {
+        let tx=self.conn.unchecked_transaction()?;
+        self.conn.execute("DELETE FROM origins WHERE id IN (SELECT usage_id FROM message_nodes WHERE message_id IN (SELECT id FROM messages WHERE conversation_id=?1)) OR id IN (SELECT id FROM usage_records WHERE conversation_id=?1)",[id])?;
+        self.conn.execute("DELETE FROM settings WHERE key IN (?1,?2)",params![format!("v4:conversationConnection:{id}"),format!("v6:context:{id}")])?;
+        self.conn.execute("DELETE FROM saved_drafts WHERE conversation_id=?",[id])?;
+        self.conn.execute("DELETE FROM draft_files WHERE conversation_id=?",[id])?;
         self.conn.execute("DELETE FROM message_nodes WHERE message_id IN (SELECT id FROM messages WHERE conversation_id=?)",[id])?;
         self.conn.execute(
             "DELETE FROM conversation_tree WHERE conversation_id=?",
@@ -478,14 +557,7 @@ impl Database {
             .execute("DELETE FROM messages WHERE conversation_id=?", [id])?;
         self.conn
             .execute("DELETE FROM conversations WHERE id=?", [id])?;
-        Ok(())
-    }
-    pub fn delete_last_assistant(&self, id: &str) -> Result<()> {
-        let path = self.active_messages(id)?;
-        if let Some(message) = path.last().filter(|m| m.role == "assistant") {
-            self.set_leaf(id, message.parent_id.as_deref())?;
-        }
-        Ok(())
+        tx.commit()?;Ok(())
     }
     pub fn setting(&self, key: &str) -> Result<Option<String>> {
         Ok(self
@@ -496,6 +568,10 @@ impl Database {
             .ok())
     }
     pub fn set_setting(&self, key: &str, value: &str) -> Result<()> {
+        if let Some(kind)=match key {"v4:requestOrigins"=>Some("request"),"v4:usageOrigins"=>Some("usage"),_=>None}{
+            let value:serde_json::Value=serde_json::from_str(value)?;
+            if let Some(map)=value.as_object(){for(id,value)in map{self.set_origin(kind,id,value)?}}return Ok(())
+        }
         self.conn.execute("INSERT INTO settings(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value",params![key,value])?;
         Ok(())
     }
@@ -504,9 +580,12 @@ impl Database {
         Ok(())
     }
     pub fn usage(&self) -> Result<Vec<Usage>> {
-        let mut q=self.conn.prepare("SELECT id,conversation_id,profile_id,profile_name,model,input_tokens,output_tokens,thinking_tokens,duration_ms,estimated_cost,created_at FROM usage_records ORDER BY created_at DESC")?;
+        self.usage_page(0,i64::MAX,None,None,None)
+    }
+    pub fn usage_page(&self,offset:i64,limit:i64,since:Option<&str>,until:Option<&str>,conversation_id:Option<&str>)->Result<Vec<Usage>> {
+        let mut q=self.conn.prepare("SELECT id,conversation_id,profile_id,profile_name,model,input_tokens,output_tokens,thinking_tokens,duration_ms,estimated_cost,created_at FROM usage_records WHERE (?1 IS NULL OR created_at>=?1) AND (?2 IS NULL OR created_at<?2) AND (?3 IS NULL OR conversation_id=?3) ORDER BY created_at DESC,id LIMIT ?4 OFFSET ?5")?;
         let rows = q
-            .query_map([], |r| {
+            .query_map(params![since,until,conversation_id,limit,offset], |r| {
                 Ok(Usage {
                     id: r.get(0)?,
                     conversation_id: r.get(1)?,
@@ -664,6 +743,8 @@ impl Database {
                 .execute("DELETE FROM settings WHERE key=?", [key])?;
         }
         self.clear_profile_preferences(id)?;
+        self.conn.execute("DELETE FROM settings WHERE key LIKE 'v4:conversationConnection:%' AND json_extract(value,'$.profileId')=?",[id])?;
+        self.conn.execute("DELETE FROM origins WHERE json_extract(value,'$.profileId')=?",[id])?;
         if self.setting("profile_id")?.as_deref() == Some(id) {
             for key in ["profile_id", "base_url", "model", "search_model"] {
                 self.set_setting(key, "")?;
@@ -719,7 +800,7 @@ fn migrate_usage(conn: &Connection) -> Result<()> {
 fn migrate_v3(conn: &Connection) -> Result<()> {
     let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
     if version >= 3 {
-        return Ok(());
+        let tx=conn.unchecked_transaction()?;migrate_v6(&tx)?;tx.execute_batch("PRAGMA user_version=6;")?;tx.commit()?;return Ok(());
     }
     let tx = conn.unchecked_transaction()?;
     tx.execute_batch("CREATE TABLE IF NOT EXISTS message_nodes(message_id TEXT PRIMARY KEY,parent_id TEXT,refs TEXT NOT NULL DEFAULT '[]',search_trace TEXT,usage_id TEXT,reasoning_content TEXT NOT NULL DEFAULT ''); CREATE INDEX IF NOT EXISTS idx_node_parent ON message_nodes(parent_id); CREATE TABLE IF NOT EXISTS conversation_tree(conversation_id TEXT PRIMARY KEY,active_leaf TEXT);")?;
@@ -768,7 +849,8 @@ fn migrate_v3(conn: &Connection) -> Result<()> {
             }
         }
     }
-    tx.execute_batch("PRAGMA user_version=3;")?;
+    migrate_v6(&tx)?;
+    tx.execute_batch("PRAGMA user_version=6;")?;
     tx.commit()?;
     Ok(())
 }
@@ -864,3 +946,7 @@ mod tests {
 #[cfg(test)]
 #[path = "database_v3_tests.rs"]
 mod v3_tests;
+
+#[cfg(test)]
+#[path = "database_v6_tests.rs"]
+mod v6_tests;

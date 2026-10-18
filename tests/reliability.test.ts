@@ -9,7 +9,7 @@ import MessageItem from '../src/components/MessageItem.vue'
 import UsageDashboard from '../src/views/UsageDashboard.vue'
 import type { Message, Settings, Usage } from '../src/types'
 
-vi.mock('../src/services/tauri',()=>({api:{isTauri:true,sendMessage:vi.fn(),selectBranch:vi.fn(),getTree:vi.fn(),applyPresetSettings:vi.fn(),selectConversation:vi.fn(),getUsage:vi.fn(async()=>[])}}))
+vi.mock('../src/services/tauri',()=>({api:{isTauri:true,attachmentLimits:vi.fn(async()=>({file:20*1024*1024,total:30*1024*1024,count:8})),getDrafts:vi.fn(async()=>({})),saveDraft:vi.fn(async()=>{}),sendMessage:vi.fn(),selectBranch:vi.fn(),getTree:vi.fn(),applyPresetSettings:vi.fn(),selectConversation:vi.fn(),getUsage:vi.fn(async()=>[])}}))
 let messages:Message[],leaf:string|null,saved:Settings|undefined
 let wrappers:ReturnType<typeof mount>[]=[]
 beforeEach(()=>{
@@ -44,14 +44,13 @@ for(const operation of ['edit'] as const){
   vi.mocked(api.sendMessage).mockImplementation(async(_id,content,_settings,_persist,_attachments,parentId)=>{
    messages.push({id:'failed-user',parentId,role:'user',content,createdAt:'5'});leaf='failed-user';throw new Error('API 503')
   })
-  if(operation==='edit')await chat.editResend(chat.active!.messages[0],'edited')
-  else await chat.continueReply(chat.active!.messages[1])
+  await chat.editResend(chat.active!.messages[0],'edited')
   await flushPromises()
   expect(api.selectBranch).toHaveBeenCalledWith('c','a2');expect(leaf).toBe('a2');expect(chat.active!.messages).toEqual(original)
   expect(chat.trees.c).toHaveLength(5);expect(chat.loading).toBe(false);expect(chat.error).toContain('服务暂时不可用')
   await chat.retry();await flushPromises();expect(api.sendMessage).toHaveBeenCalledTimes(2)
-  expect(vi.mocked(api.sendMessage).mock.calls[1][1]).toBe(operation==='edit'?'edited':'请从上一条回答结束处继续生成，避免重复已有内容。')
-  expect(vi.mocked(api.sendMessage).mock.calls[1][5]).toBe(operation==='edit'?null:'a')
+  expect(vi.mocked(api.sendMessage).mock.calls[1][1]).toBe('edited')
+  expect(vi.mocked(api.sendMessage).mock.calls[1][5]).toBeNull()
  })
 }
 it('does not edit a different conversation after an asynchronous edit dialog',async()=>{

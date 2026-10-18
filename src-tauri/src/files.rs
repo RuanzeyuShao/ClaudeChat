@@ -5,10 +5,11 @@ use quick_xml::{events::Event, Reader};
 use std::{collections::HashMap, io::{Cursor, Read}, path::Path};
 use uuid::Uuid;
 
-const MAX_FILE: usize = 20 * 1024 * 1024;
+pub const MAX_FILE: usize = 20 * 1024 * 1024;
 const MAX_TEXT: usize = 200_000;
 
 pub fn parse(name: String, mime: String, data: String) -> Result<Attachment> {
+  if data.len()>MAX_FILE.div_ceil(3)*4{return Err(anyhow!("单个附件不得超过 20 MB"));}
   let bytes=STANDARD.decode(&data)?;
   if bytes.is_empty() || bytes.len()>MAX_FILE { return Err(anyhow!("文件须介于 1 字节和 20 MB 之间")); }
   let extension=Path::new(&name).extension().and_then(|x|x.to_str()).unwrap_or("").to_lowercase();
@@ -136,7 +137,9 @@ pub fn markdown(conversation:&Conversation,messages:&[Message])->String {
 pub fn export_pdf(conversation:&Conversation,messages:&[Message],path:&Path)->Result<()> {
   use printpdf::*;
   let (doc,page,layer)=PdfDocument::new(&conversation.title,Mm(210.0),Mm(297.0),"Content");
-  let font_path=["C:\\Windows\\Fonts\\simhei.ttf","C:\\Windows\\Fonts\\msyh.ttf","C:\\Windows\\Fonts\\msyh.ttc"].into_iter().find(|p|Path::new(p).exists()).ok_or_else(||anyhow!("未找到可用于中文 PDF 的系统字体"))?;
+  let windows=std::env::var_os("SystemRoot").ok_or_else(||anyhow!("无法确定 Windows 字体目录"))?;
+  let fonts=Path::new(&windows).join("Fonts");
+  let font_path=["simhei.ttf","msyh.ttf","msyh.ttc"].into_iter().map(|name|fonts.join(name)).find(|p|p.exists()).ok_or_else(||anyhow!("未找到可用于中文 PDF 的系统字体"))?;
   let font=doc.add_external_font(std::fs::File::open(font_path)?)?;
   let mut page=page;let mut layer=layer;let mut y=280.0;let mut code=false;
   for line in markdown(conversation,messages).lines() {

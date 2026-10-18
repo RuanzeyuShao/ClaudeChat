@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
-const directory='dist-release/v0.1.5/screenshots'
+const directory='dist-release/v0.1.6/screenshots'
 test('welcome, Provider cancellation, menus and keyboard shortcuts',async({page})=>{
  await page.goto('/',{waitUntil:'domcontentloaded'})
  await expect(page.getByRole('heading',{name:'从一个想法开始'})).toBeVisible()

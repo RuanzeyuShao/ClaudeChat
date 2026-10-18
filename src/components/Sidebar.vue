@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ConversationTitle from './ConversationTitle.vue'
+import { version } from '../../package.json'
 import ProviderSelector from './ProviderSelector.vue'
 import ActionMenu from './ActionMenu.vue'
 import BaseModal from './BaseModal.vue'
@@ -13,6 +14,11 @@ import type { Conversation, ProviderKind } from '../types'
 defineProps<{page:'chat'|'usage';collapsed:boolean;width:number}>()
 const emit=defineEmits<{openSettings:[provider?:ProviderKind,profileId?:string];openUsage:[];openChat:[];toggle:[]}>()
 const chat=useChatStore(), ui=useUiStore(), query=ref(''), results=ref<Conversation[]>([]), searching=ref(false)
+let runningSearch=false, pendingSearch:{value:string;sequence:number}|null=null
+async function runSearch(value:string,current:number){
+ pendingSearch={value,sequence:current};if(runningSearch)return;runningSearch=true
+ try{while(pendingSearch){const next=pendingSearch;pendingSearch=null;if(next.sequence!==sequence)continue;try{const found=api.isTauri?await api.searchConversations(next.value):chat.conversations.filter(c=>c.title.toLowerCase().includes(next.value.toLowerCase()));if(next.sequence===sequence)results.value=found}catch(e){if(next.sequence===sequence){results.value=[];ui.failure(e)}}finally{if(next.sequence===sequence)searching.value=false}}}finally{runningSearch=false}
+}
 let sequence=0, timer:ReturnType<typeof setTimeout>|undefined
 const searchOpen=ref(false), searchInput=ref<HTMLInputElement>(), filtersOpen=ref(false)
 async function focusSearch(){searchOpen.value=true;await nextTick();searchInput.value?.focus()}
@@ -20,7 +26,7 @@ watch(query,value=>{
  clearTimeout(timer);const current=++sequence
  if(!value.trim()){results.value=[];searching.value=false;return}
  searching.value=true
- timer=setTimeout(async()=>{try{const found=api.isTauri?await api.searchConversations(value.trim()):chat.conversations.filter(c=>c.title.toLowerCase().includes(value.toLowerCase()));if(current===sequence)results.value=found}catch(e){if(current===sequence){results.value=[];ui.failure(e)}}finally{if(current===sequence)searching.value=false}},180)
+ timer=setTimeout(()=>void runSearch(value.trim(),current),300)
 })
 const folder=ref(''),tag=ref(''),pinned=ref(false)
 const folders=computed(()=>[...new Set(Object.values(chat.organization).map(o=>o.folder).filter(Boolean))])
@@ -51,7 +57,7 @@ onUnmounted(()=>{clearTimeout(timer);sequence++;window.removeEventListener('chat
   <div v-if="searchOpen" class="history-search-wrap"><Search :size="14"/><input ref="searchInput" v-model="query" type="search" placeholder="搜索会话、消息、附件" aria-label="搜索历史对话" @keydown.esc="query='';searchOpen=false"/><button class="icon-button" aria-label="清空搜索" @click="query='';searchInput?.focus()"><X :size="14"/></button></div>
   <div v-if="filtersOpen" class="conversation-filters"><select v-model="folder" aria-label="筛选文件夹"><option value="">全部文件夹</option><option v-for="f in folders" :key="f" :value="f">{{ f }}</option></select><select v-model="tag" aria-label="筛选标签"><option value="">全部标签</option><option v-for="t in tags" :key="t">{{ t }}</option></select><div><button v-if="folder" @click="renameCategory('folder')">管理文件夹</button><button v-if="tag" @click="renameCategory('tag')">管理标签</button></div><label><input v-model="pinned" type="checkbox"/>仅置顶</label></div>
   <nav class="conversation-list" aria-label="历史会话"><section v-for="group in groups" :key="group.name"><h3>{{ group.name }}</h3><div v-for="item in group.items" :key="item.id" class="conversation" :class="{active:item.id===chat.activeId && page==='chat'}" @contextmenu.prevent="menus.get(item.id)?.show()"><button class="conversation-link" :title="item.title" :disabled="chat.loading" @click="select(item.id)"><Pin v-if="chat.organization[item.id]?.pinned" :size="13"/><MessageSquare v-else :size="15" class="conversation-icon"/><ConversationTitle :title="item.title" :folder="chat.organization[item.id]?.folder"/></button><ActionMenu :ref="instance=>menuRef(item.id,instance)" label="会话操作"><button role="menuitem" :disabled="chat.loading" @click="rename(item.id,item.title)"><Pencil :size="15"/>重命名</button><button role="menuitem" :disabled="chat.loading" @click="pin(item.id)"><Pin :size="15"/>{{ chat.organization[item.id]?.pinned?'取消置顶':'置顶' }}</button><button role="menuitem" :disabled="chat.loading" @click="classify(item.id)"><Folder :size="15"/>文件夹与标签</button><hr/><button role="menuitem" class="danger" :disabled="chat.loading" @click="remove(item)"><Trash2 :size="15"/>删除对话</button></ActionMenu></div></section><p v-if="searching" class="search-empty">正在搜索…</p><p v-else-if="!filtered.length" class="search-empty">没有匹配的对话</p></nav>
-  <div class="sidebar-footer"><button class="settings-button" title="设置 · Ctrl+," aria-label="设置" @click="emit('openSettings')"><Settings2 :size="18"/><span>设置</span></button><small>v0.1.5</small></div>
+  <div class="sidebar-footer"><button class="settings-button" title="设置 · Ctrl+," aria-label="设置" @click="emit('openSettings')"><Settings2 :size="18"/><span>设置</span></button><small>v{{ version }}</small></div>
  </aside>
  <BaseModal v-if="classifyTarget" title="会话分类" :busy="saving" @close="!saving && (classifyTarget=null)"><form id="classification" @submit.prevent="saveClassification"><label>文件夹<input v-model="folderDraft" placeholder="留空移出文件夹" list="folder-names"/><datalist id="folder-names"><option v-for="f in folders" :key="f" :value="f"/></datalist></label><label>标签<input v-model="tagsDraft" placeholder="用逗号分隔多个标签"/></label></form><template #footer><button class="secondary" :disabled="saving" @click="classifyTarget=null">取消</button><button class="primary" form="classification" type="submit" :disabled="saving">{{ saving?'保存中…':'保存' }}</button></template></BaseModal>
 </template>

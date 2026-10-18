@@ -16,5 +16,5 @@ for(const file of ['CHANGELOG.md','docs/v0.1.5-recovery-report.md','docs/v0.1.5-
 const files=execFileSync('git',['-c','core.quotepath=false','diff','--name-only'],{encoding:'utf8'}).trim().split('\n')
 const added=execFileSync('git',['-c','core.quotepath=false','ls-files','--others','--exclude-standard'],{encoding:'utf8'}).trim().split('\n').filter(Boolean)
 writeFileSync(join(directory,'CHANGED-FILES.txt'),[...new Set([...files,...added])].sort().join('\n')+'\n')
-writeFileSync(join(directory,'manifest.json'),JSON.stringify({product:'ClaudeChat',version,platform:'windows-x64',installer:filename,bytes:statSync(installer).size,sha256:checksum,builtAt:new Date().toISOString(),branch:execFileSync('git',['branch','--show-current'],{encoding:'utf8'}).trim(),remotePublished:false},null,2)+'\n')
+writeFileSync(join(directory,'manifest.json'),JSON.stringify({product:'ClaudeChat',version,platform:'windows-x64',installer:filename,bytes:statSync(installer).size,sha256:checksum,builtAt:new Date().toISOString(),branch:execFileSync('git',['branch','--show-current'],{encoding:'utf8'}).trim(),sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),githubReleasePublished:false},null,2)+'\n')
 console.log(`交付目录：${directory}\n${filename}\nSHA-256: ${checksum}`)

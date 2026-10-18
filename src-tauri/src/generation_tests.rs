@@ -27,7 +27,7 @@ fn openai_annotations_keep_exact_unicode_answer_spans_and_explicit_aliases(){
 }
 
 fn settings(provider: &str, base: &str) -> Settings {
-    serde_json::from_value(json!({"apiKey":"","baseUrl":base,"provider":provider,"model":"user-model","thinking":"off","webSearch":false,"theme":"light"})).unwrap()
+    serde_json::from_value(json!({"autoContinuations":2,"autoRecoveries":3,"apiKey":"","baseUrl":base,"provider":provider,"model":"user-model","thinking":"off","webSearch":false,"theme":"light"})).unwrap()
 }
 fn sse(value: Value) -> String {
     format!("data: {value}\n\n")
@@ -476,22 +476,12 @@ async fn context_limit_and_filter_endings_are_not_automatically_retried() {
 
 #[tokio::test]
 async fn transport_failure_after_text_keeps_content_instead_of_dropping_it() {
-    use std::{
-        io::{Read, Write},
-        net::TcpListener,
-    };
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let address = listener.local_addr().unwrap();
-    let body = sse(json!({"choices":[{"delta":{"content":"网络断开前已经生成的内容"}}]}));
-    let server = std::thread::spawn(move || {
-        let (mut socket, _) = listener.accept().unwrap();
-        let mut buffer = [0; 8192];
-        let _ = socket.read(&mut buffer).unwrap();
-        write!(socket,"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",body.len()+1000,body).unwrap();
-    });
+    let body=sse(json!({"choices":[{"delta":{"content":"网络断开前已经生成的内容"}}]}));
+    let(base,server)=crate::test_http::serve(vec![(200,"text/event-stream; truncated",body)]);
+    let mut config=settings("openai",&base);config.auto_recoveries=0;
     let mut completion = Value::Null;
     let result = stream(
-        &settings("openai", &format!("http://{address}")),
+        &config,
         "mock".into(),
         history(),
         String::new(),

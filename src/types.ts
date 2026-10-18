@@ -18,6 +18,8 @@ export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'
 export type ProviderKind = 'anthropic-compatible' | 'openai-compatible' | 'openai' | 'deepseek' | 'moonshot' | 'zhipu' | 'grok'
 export interface ProviderModel { id: string; name?: string }
 export interface Settings {
+  autoContinuations?: number
+  autoRecoveries?: number
   colorTheme?: ColorThemeId
   searchModel?: string
   requestOptions?: Record<string, unknown> | null

@@ -1,6 +1,6 @@
 use super::*;
 fn settings(provider: &str, base: &str) -> Settings {
-    serde_json::from_value(json!({"apiKey":"","baseUrl":base,"provider":provider,"model":"custom","thinking":"off","webSearch":false,"theme":"system"})).unwrap()
+    serde_json::from_value(json!({"autoContinuations":2,"autoRecoveries":3,"apiKey":"","baseUrl":base,"provider":provider,"model":"custom","thinking":"off","webSearch":false,"theme":"system"})).unwrap()
 }
 fn event(v: Value) -> String {
     format!("data: {v}\n\n")
@@ -16,6 +16,19 @@ fn history() -> Vec<Message> {
         content: "完成原始任务".into(),
         ..Default::default()
     }]
+}
+#[tokio::test]
+async fn default_configuration_stops_after_one_continuation_and_disables_automatic_recovery(){
+    let segment=|text:&str|event(json!({"choices":[{"delta":{"content":text},"finish_reason":"length"}]}));
+    let(base,server)=crate::test_http::serve(vec![(200,"text/event-stream",segment("first")),(200,"text/event-stream",segment("second"))]);
+    let config:Settings=serde_json::from_value(json!({"apiKey":"","baseUrl":base,"provider":"openai","model":"custom","thinking":"off","webSearch":false,"theme":"system"})).unwrap();
+    assert_eq!(config.auto_continuations,1);assert_eq!(config.auto_recoveries,0);
+    let mut completion=Value::Null;
+    stream(&config,"mock".into(),history(),String::new(),false,Arc::new(AtomicBool::new(false)),|_|Ok(()),|phase,data|if phase=="completion"{completion=serde_json::from_str(&data).unwrap()}).await.unwrap();
+    assert_eq!(completion["continuations"],1);assert_eq!(completion["status"],"length");assert_eq!(server.join().unwrap().len(),2);
+    let(base,server)=crate::test_http::serve(vec![(503,"application/json","gateway unavailable".into())]);let mut config=config;config.base_url=base;
+    stream(&config,"mock".into(),history(),String::new(),false,Arc::new(AtomicBool::new(false)),|_|Ok(()),|phase,data|if phase=="completion"{completion=serde_json::from_str(&data).unwrap()}).await.unwrap();
+    assert_eq!(completion["recoveries"],0);assert_eq!(server.join().unwrap().len(),1);
 }
 async fn run(provider: &str, base: &str, search: bool) -> (Response, Value, Vec<Call>) {
     let mut completion = Value::Null;

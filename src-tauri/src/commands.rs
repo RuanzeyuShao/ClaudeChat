@@ -19,9 +19,19 @@ impl Drop for GenerationGuard {
 const KEY_SERVICE: &str = "ClaudeChat";
 const KEY_ACCOUNT: &str = "api-key";
 
+pub fn search_intent(mode:&str,enabled:bool,content:&str)->bool {
+    if mode=="off"{return false}if mode=="force"{return true}if !enabled{return false}
+    let text=content.to_lowercase();
+    ["搜索","检索","查一下","查找资料","联网","最新","今天","今日","实时","新闻","天气","股价","汇率","search the web","look up","latest","today","current price","weather","news"].iter().any(|word|text.contains(word))
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
+    #[serde(default = "default_continuations")]
+    pub auto_continuations: usize,
+    #[serde(default)]
+    pub auto_recoveries: usize,
     #[serde(default)]
     pub search_model: String,
     #[serde(default)]
@@ -54,6 +64,7 @@ pub struct Settings {
     #[serde(default)]
     pub selected_attachment_ids: Vec<String>,
 }
+pub fn default_continuations()->usize{1}
 #[derive(Serialize)]
 pub struct ConnectionResult {
     pub ok: bool,
@@ -128,12 +139,36 @@ pub fn set_conversation_prompt(
         .map_err(|e| e.to_string())
 }
 #[tauri::command]
-pub fn parse_attachment(name: String, mime: String, data: String) -> Result<Attachment, String> {
-    files::parse(name, mime, data).map_err(|e| e.to_string())
+pub fn parse_attachment(name: String, mime: String, data: String, conversation_id:String, state:State<AppState>) -> Result<Attachment, String> {
+    let mut attachment=files::parse(name, mime, data).map_err(|e| e.to_string())?;
+    state.db.lock().map_err(|e|e.to_string())?.cache_attachment(&conversation_id,&attachment).map_err(|e|e.to_string())?;attachment.data=None;Ok(attachment)
 }
 #[tauri::command]
-pub fn parse_attachment_path(path: String) -> Result<Attachment, String> {
-    files::parse_path(std::path::Path::new(&path)).map_err(|e| e.to_string())
+pub fn parse_attachment_path(path: String, conversation_id:String, state:State<AppState>) -> Result<Attachment, String> {
+    let mut attachment=files::parse_path(std::path::Path::new(&path)).map_err(|e| e.to_string())?;
+    state.db.lock().map_err(|e|e.to_string())?.cache_attachment(&conversation_id,&attachment).map_err(|e|e.to_string())?;attachment.data=None;Ok(attachment)
+}
+#[tauri::command]
+pub fn attachment_limits()->serde_json::Value{serde_json::json!({"file":files::MAX_FILE,"total":30*1024*1024,"count":8})}
+#[tauri::command]
+pub fn get_drafts(state:State<AppState>)->Result<serde_json::Value,String>{state.db.lock().map_err(|e|e.to_string())?.drafts().map_err(|e|e.to_string())}
+#[tauri::command]
+pub fn save_draft(conversation_id:String,draft:serde_json::Value,state:State<AppState>)->Result<(),String>{state.db.lock().map_err(|e|e.to_string())?.save_draft(&conversation_id,draft).map_err(|e|e.to_string())}
+#[tauri::command]
+pub fn cleanup_data(state:State<AppState>)->Result<usize,String>{
+    if state.generating.load(Ordering::Acquire){return Err("请等待当前回答完成".into())}
+    state.db.lock().map_err(|e|e.to_string())?.cleanup().map_err(|e|e.to_string())
+}
+#[tauri::command]
+pub fn delete_turn(conversation_id:String,message_id:String,state:State<AppState>)->Result<(),String>{
+    if state.generating.load(Ordering::Acquire){return Err("请等待当前回答完成".into())}
+    state.db.lock().map_err(|e|e.to_string())?.delete_turn(&conversation_id,&message_id).map_err(|e|e.to_string())
+}
+#[tauri::command]
+pub fn clear_all_data(state:State<AppState>)->Result<(),String>{
+    if state.generating.load(Ordering::Acquire){return Err("请等待当前回答完成".into())}
+    let db=state.db.lock().map_err(|e|e.to_string())?;
+    crate::profile_service::clear_all(&db,&crate::profile_service::KeyringSecrets).map_err(|e|e.to_string())
 }
 #[tauri::command]
 pub fn get_attachment_data(
@@ -182,18 +217,6 @@ pub fn create_conversation(model: String, state: State<AppState>) -> Result<Conv
         .map_err(|e| e.to_string())
 }
 #[tauri::command]
-pub fn get_messages(
-    conversation_id: String,
-    state: State<AppState>,
-) -> Result<Vec<Message>, String> {
-    state
-        .db
-        .lock()
-        .map_err(|e| e.to_string())?
-        .messages(&conversation_id)
-        .map_err(|e| e.to_string())
-}
-#[tauri::command]
 pub fn rename_conversation(
     conversation_id: String,
     title: String,
@@ -207,19 +230,6 @@ pub fn rename_conversation(
         .map_err(|e| e.to_string())
 }
 #[tauri::command]
-pub fn set_conversation_model(
-    conversation_id: String,
-    model: String,
-    state: State<AppState>,
-) -> Result<(), String> {
-    state
-        .db
-        .lock()
-        .map_err(|e| e.to_string())?
-        .set_model(&conversation_id, &model)
-        .map_err(|e| e.to_string())
-}
-#[tauri::command]
 pub fn delete_conversation(conversation_id: String, state: State<AppState>) -> Result<(), String> {
     if state.generating.load(Ordering::Acquire) {
         return Err("生成期间不能删除会话".into());
@@ -229,18 +239,6 @@ pub fn delete_conversation(conversation_id: String, state: State<AppState>) -> R
         .lock()
         .map_err(|e| e.to_string())?
         .delete(&conversation_id)
-        .map_err(|e| e.to_string())
-}
-#[tauri::command]
-pub fn delete_last_assistant(
-    conversation_id: String,
-    state: State<AppState>,
-) -> Result<(), String> {
-    state
-        .db
-        .lock()
-        .map_err(|e| e.to_string())?
-        .delete_last_assistant(&conversation_id)
         .map_err(|e| e.to_string())
 }
 #[tauri::command]
@@ -320,7 +318,7 @@ pub fn apply_preset_settings(
     let db=state.db.lock().map_err(|e|e.to_string())?;
     let mut settings=crate::connection::resolve(&db,settings).map_err(|e|e.to_string())?;
     validate_provider(&settings)?;
-    if !settings.profile_id.is_empty(){let _=api_key_for(&settings)?;}
+    let _=api_key_for(&settings)?;
     crate::connection::persist_with_prompt(&db,&settings,Some(&conversation_id),system_prompt.as_deref()).map_err(|e|e.to_string())?;
     settings.api_key.clear();
     Ok(settings)
@@ -440,12 +438,12 @@ pub fn import_legacy_profile(state: State<AppState>) -> Result<ApiProfile, Strin
     save_profile(profile, key, state)
 }
 #[tauri::command]
-pub fn get_usage(state: State<AppState>) -> Result<Vec<Usage>, String> {
+pub fn get_usage(offset:Option<i64>,since:Option<String>,until:Option<String>,conversation_id:Option<String>,state: State<AppState>) -> Result<Vec<Usage>, String> {
     state
         .db
         .lock()
         .map_err(|e| e.to_string())?
-        .usage()
+        .usage_page(offset.unwrap_or(0).max(0),500,since.as_deref(),until.as_deref(),conversation_id.as_deref())
         .map_err(|e| e.to_string())
 }
 #[tauri::command]
@@ -527,10 +525,12 @@ pub async fn send_message(
     validate_provider(&settings)?;
     if settings.model.is_empty() || settings.base_url.is_empty(){return Err("请先选择 API 配置和模型".into())}
     let key = api_key_for(&settings)?;
+    let attachments={let db=state.db.lock().map_err(|e|e.to_string())?;attachments.iter().map(|a|db.hydrate_attachment(&conversation_id,a).map_err(|e|e.to_string())).collect::<Result<Vec<_>,_>>()?};
+    if attachments.iter().any(|a|a.size>files::MAX_FILE) || attachments.iter().map(|a|a.size).sum::<usize>()>30*1024*1024{return Err("单个附件不得超过 20 MB".into())}
     state.cancelled.store(false, Ordering::Relaxed);
     let (mut history, prompt, title, seed) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        let all = db.messages(&conversation_id).map_err(|e| e.to_string())?;
+        let mut all = db.messages(&conversation_id).map_err(|e| e.to_string())?;
         for reference in &mut references {
             let _original = all
                 .iter()
@@ -542,9 +542,9 @@ pub async fn send_message(
         }
         let seed=if let Some(target)=&continue_message_id {
             if persist_user || !attachments.is_empty(){return Err("续写不能新增用户消息".into())}
-            let current=db.active_messages(&conversation_id).map_err(|e|e.to_string())?;
+            let current=db.path_from(&conversation_id,&all).map_err(|e|e.to_string())?;
             let last=current.last().filter(|m|m.id==*target && m.role=="assistant").ok_or("请先选择要续写的回答所在分支末尾")?;
-            if let Some(usage)=&last.usage_id {let origins=db.extension("v4:requestOrigins").map_err(|e|e.to_string())?;if origins[usage]["generation"]["status"]=="blocked"{return Err("服务商安全拒绝不能续写或自动重试".into())}}
+            if let Some(usage)=&last.usage_id {let origin=db.origin("request",usage).map_err(|e|e.to_string())?;if origin["generation"]["status"]=="blocked"{return Err("服务商安全拒绝不能续写或自动重试".into())}}
             Some(last.clone())
         }else{None};
         if seed.is_none(){db.set_leaf(&conversation_id, parent_id.as_deref())
@@ -562,7 +562,11 @@ pub async fn send_message(
         let prompt = db
             .system_prompt(&conversation_id)
             .map_err(|e| e.to_string())?;
-        let history=crate::connection::prepare_history(db.active_messages(&conversation_id).map_err(|e|e.to_string())?,&db.extension("v4:requestOrigins").map_err(|e|e.to_string())?,&settings);
+        if persist_user {
+            let leaf=db.leaf(&conversation_id).map_err(|e|e.to_string())?;
+            all.push(Message{id:leaf.unwrap(),parent_id:parent_id.clone(),role:"user".into(),content:content.clone(),attachments:attachments.clone(),references:references.clone(),..Default::default()});
+        }
+        let history=crate::connection::prepare_history(db.path_from(&conversation_id,&all).map_err(|e|e.to_string())?,&db.request_origins_for_conversation(&conversation_id).map_err(|e|e.to_string())?,&settings);
         (
             history,
             prompt,
@@ -659,13 +663,7 @@ pub async fn send_message(
     let mut request_identity=crate::connection::identity(&settings,&profile_name);
     request_identity["requestId"]=serde_json::json!(request_id);
     let _=window.emit("chat-request",serde_json::json!({"conversationId":conversation_id,"requestId":request_id,"request":request_identity}));
-    let use_search = seed.is_none() && (settings.search_mode == "force"
-        || (settings.search_mode != "off"
-            && settings.web_search
-            && (content.contains('?')
-                || content.contains('？')
-                || content.contains("搜索")
-                || content.contains("最新"))));
+    let use_search = seed.is_none() && search_intent(&settings.search_mode,settings.web_search,&content);
     if use_search {
         let _=window.emit("chat-search",serde_json::json!({"conversationId":conversation_id,"requestId":request_id,"trace":{"provider":settings.search_provider,"mode":settings.search_mode,"query":if settings.search_provider=="searxng"{content.clone()}else{String::new()},"status":if settings.search_provider=="searxng" || !settings.search_model.trim().is_empty(){"searching"}else{"allowed"},"sources":0}}));
     }
@@ -678,6 +676,7 @@ pub async fn send_message(
     if use_search {system.push_str("\n\n引用规则：仅引用实际搜索来源，标号或原生引用紧跟对应论述的句末标点之后，可连续引用；不要在句首、段首集中放置引用，不得编造来源或引用关系。来源不足时明确说明。");}
     let mut dedicated_events = vec![];
     let mut external_completed=false;
+    let mut search_warning:Option<String>=None;
     if use_search
         && settings.search_provider != "searxng"
         && !settings.search_model.trim().is_empty()
@@ -699,7 +698,7 @@ pub async fn send_message(
             true,
             cancelled.clone(),
             |_| Ok(()),
-            |phase,data|{if phase=="call_usage"{if let Ok(call)=serde_json::from_str(&data){search_calls.push(call)}}else if phase=="completion"{if let Ok(value)=serde_json::from_str(&data){search_completion=value}}},
+            |phase,data|{if phase=="call_start"{let _=window.emit("chat-call-start",serde_json::json!({"conversationId":conversation_id,"requestId":request_id}));}else if phase=="call_usage"{if let Ok(call)=serde_json::from_str(&data){search_calls.push(call)}}else if phase=="completion"{if let Ok(value)=serde_json::from_str(&data){search_completion=value}}},
         )
         .await
         .map_err(|e| {record_search_failure(&window,&state,&conversation_id,&request_id,&settings,&content,&e.to_string());e.to_string()})?;
@@ -727,17 +726,19 @@ pub async fn send_message(
                 / 1_000_000.0,
             created_at: chrono::Utc::now().to_rfc3339(),
         };
-        let search_identity=crate::connection::identity(&search_settings,&profile_name);
+        let mut search_identity=crate::connection::identity(&search_settings,&profile_name);search_identity["requestId"]=serde_json::json!(request_id);
         db.add_usage_with_origin(&search_usage,&search_identity).map_err(|e| e.to_string())?;
         let _=window.emit("chat-request-origin",serde_json::json!({"id":search_usage.id,"request":search_identity}));
-        let mut origins=db.extension("v4:usageOrigins").map_err(|e|e.to_string())?;if !origins.is_object(){origins=serde_json::json!({})}origins[&search_usage.id]=call.origin.clone();db.set_setting("v4:usageOrigins",&origins.to_string()).map_err(|e|e.to_string())?;
+        db.set_origin("usage",&search_usage.id,&call.origin).map_err(|e|e.to_string())?;
         let _=window.emit("chat-usage-origin",serde_json::json!({"id":search_usage.id,"origin":call.origin}));
         let _ = window.emit("chat-usage", serde_json::json!({"usage":search_usage}));}
         drop(db);
         if search_completion["status"]!="complete" {
             let error=format!("搜索未完成（{}）：{}",search_completion["status"].as_str().unwrap_or("interrupted"),search_completion["error"].as_str().unwrap_or("搜索模型未正常完成，请检查搜索模型或连接设置"));
             record_search_failure(&window,&state,&conversation_id,&request_id,&settings,&content,&error);
-            return Err(error);
+            if state.cancelled.load(Ordering::Relaxed) || search_completion["status"]=="blocked"{return Err(error)}
+            search_warning=Some(error);
+            system.push_str("\n搜索模型返回不完整，仅基于已获取的来源回答，并明确检索受限。");
         }
     }
     if use_search && settings.search_provider == "searxng" {
@@ -777,12 +778,13 @@ pub async fn send_message(
     let aggregate_id=format!("reply:{node_id}");
     if let Some(old)=seed.as_ref().and_then(|m|m.usage_id.as_ref()) {
         let db=state.db.lock().map_err(|e|e.to_string())?;
-        let origins=db.extension("v4:requestOrigins").map_err(|e|e.to_string())?;
-        request_identity["usageIds"]=origins[old]["usageIds"].as_array().cloned().map(serde_json::Value::Array).unwrap_or_else(||serde_json::json!([old]));
+        let origin=db.origin("request",old).map_err(|e|e.to_string())?;
+        request_identity["usageIds"]=origin["usageIds"].as_array().cloned().map(serde_json::Value::Array).unwrap_or_else(||serde_json::json!([old]));
     }
     if !request_identity["usageIds"].is_array(){request_identity["usageIds"]=serde_json::json!([])}
     request_identity["generation"]=serde_json::json!({"status":"interrupted","reason":"process_interrupted","continuations":0,"error":"生成过程未正常结束，可从已保存断点继续。"});
-    let trace=seed.as_ref().and_then(|m|m.search_trace.clone()).unwrap_or_else(||serde_json::json!({"mode":settings.search_mode,"provider":settings.search_provider,"query":content,"status":if use_search{"allowed"}else{"off"},"sources":external_sources.len()}));
+    let mut trace=seed.as_ref().and_then(|m|m.search_trace.clone()).unwrap_or_else(||serde_json::json!({"mode":settings.search_mode,"provider":settings.search_provider,"query":content,"status":if use_search{"allowed"}else{"off"},"sources":external_sources.len()}));
+    if let Some(warning)=&search_warning {trace["status"]=serde_json::json!("failed");trace["error"]=serde_json::json!(warning);}
     let live=std::sync::Mutex::new(LiveReply{content:seed.as_ref().map(|m|m.content.clone()).unwrap_or_default(),reasoning:seed.as_ref().map(|m|m.reasoning_content.clone()).unwrap_or_default(),sources:seed.as_ref().and_then(|m|m.sources.clone()).unwrap_or_else(||external_sources.clone()),trace,origin:request_identity,last_save:std::time::Instant::now(),saved_chars:0,error:None});
     let persist=|reply:&mut LiveReply,force:bool| {
         let size=reply.content.len()+reply.reasoning.len()+reply.sources.len();
@@ -801,24 +803,25 @@ pub async fn send_message(
     },|phase,delta|{
         let mut reply=live.lock().unwrap();
         match phase {
+            "call_start"=>{let _=window.emit("chat-call-start",serde_json::json!({"conversationId":conversation_id,"requestId":request_id}));},
             "call_usage"=>{if let Ok(call)=serde_json::from_str::<crate::recovery::Call>(&delta){
                 let usage=Usage{id:uuid::Uuid::new_v4().to_string(),conversation_id:conversation_id.clone(),profile_id:profile_id.clone(),profile_name:profile_name.clone(),model:model.clone(),input_tokens:call.input,output_tokens:call.output,thinking_tokens:call.thinking,duration_ms:call.duration_ms,estimated_cost:(call.input as f64*prices.0+call.output as f64*prices.1)/1_000_000.0,created_at:chrono::Utc::now().to_rfc3339()};
                 let mut identity=crate::connection::identity(&settings,&profile_name);identity["requestId"]=serde_json::json!(request_id);identity["callReason"]=serde_json::json!(call.reason);
                 let result=state.db.lock().map_err(|e|e.to_string()).and_then(|db|{
                     db.add_usage_with_origin(&usage,&identity).map_err(|e|e.to_string())?;
-                    let mut origins=db.extension("v4:usageOrigins").map_err(|e|e.to_string())?;if !origins.is_object(){origins=serde_json::json!({})}origins[&usage.id]=call.origin.clone();db.set_setting("v4:usageOrigins",&origins.to_string()).map_err(|e|e.to_string())
+                    db.set_origin("usage",&usage.id,&call.origin).map_err(|e|e.to_string())
                 });
                 if let Err(error)=result{reply.error=Some(error)}else{
                     reply.origin["usageIds"].as_array_mut().unwrap().push(serde_json::json!(usage.id));
-                    if let Ok(db)=state.db.lock(){if let Ok(mut origins)=db.extension("v4:usageOrigins"){
+                    if let Ok(db)=state.db.lock(){
                         let mut combined=serde_json::json!({});
                         for field in ["input","output","thinking"]{
-                            let values:Vec<_>=reply.origin["usageIds"].as_array().unwrap().iter().filter_map(|id|id.as_str()).map(|id|origins[id][field].as_str().unwrap_or("unavailable")).collect();
-                            combined[field]=serde_json::json!(if values.iter().all(|v|*v==values[0]){values[0]}else{"partial"});
+                            let values:Vec<_>=reply.origin["usageIds"].as_array().unwrap().iter().filter_map(|id|id.as_str()).map(|id|db.origin("usage",id).unwrap_or_default()[field].as_str().unwrap_or("unavailable").to_string()).collect();
+                            combined[field]=serde_json::json!(if values.iter().all(|v|*v==values[0]){values[0].as_str()}else{"partial"});
                         }
-                        origins[&aggregate_id]=combined.clone();if let Err(error)=db.set_setting("v4:usageOrigins",&origins.to_string()){reply.error=Some(error.to_string())}
+                        if let Err(error)=db.set_origin("usage",&aggregate_id,&combined){reply.error=Some(error.to_string())}
                         let _=window.emit("chat-usage-origin",serde_json::json!({"id":aggregate_id,"origin":combined}));
-                    }}
+                    }
                     let _=window.emit("chat-request-origin",serde_json::json!({"id":usage.id,"request":identity}));
                     let _=window.emit("chat-usage-origin",serde_json::json!({"id":usage.id,"origin":call.origin}));
                     let _=window.emit("chat-usage",serde_json::json!({"usage":usage}));
@@ -840,7 +843,7 @@ pub async fn send_message(
         reply.content=answer;reply.reasoning=reasoning;crate::recovery::merge_sources(&mut reply.sources,sources);events.extend(dedicated_events);
         if let Some(previous)=seed.as_ref().and_then(|m|m.search_trace.as_ref()).and_then(|trace|trace["events"].as_array()){let mut combined=previous.clone();combined.extend(events);events=combined;}
         reply.trace["events"]=serde_json::json!(events);reply.trace["sources"]=serde_json::json!(reply.sources.len());
-        if seed.is_none(){reply.trace["status"]=serde_json::json!(if state.cancelled.load(Ordering::Relaxed){"cancelled"}else{search::completion_status(use_search,external_completed,&reply.sources,&events)});}
+        if seed.is_none() && search_warning.is_none(){reply.trace["status"]=serde_json::json!(if state.cancelled.load(Ordering::Relaxed){"cancelled"}else{search::completion_status(use_search,external_completed,&reply.sources,&events)});}
     }else if let Err(error)=response {generation=serde_json::json!({"status":"interrupted","reason":"interrupted","continuations":0,"error":error.to_string()});reply.origin["generation"]=generation.clone();}
     persist(&mut reply,true);
     let _=window.emit("chat-request-origin",serde_json::json!({"id":aggregate_id,"request":reply.origin}));
@@ -928,7 +931,7 @@ pub fn save_extension(
         .map_err(|e| e.to_string())
 }
 fn valid_extension_key(key: &str) -> bool {
-    key.starts_with("v3:") || matches!(key,"v4:drafts" | "v4:sendMode" | "v4:usageOrigins" | "v4:requestOrigins" | "v4:lastConversation" | "v5:fontSize" | "v5:blankConversation") || key.starts_with("v4:conversationConnection:")
+    key.starts_with("v6:context:") || key.starts_with("v3:") || matches!(key,"v4:drafts" | "v4:sendMode" | "v4:usageOrigins" | "v4:requestOrigins" | "v4:lastConversation" | "v5:fontSize" | "v5:blankConversation") || key.starts_with("v4:conversationConnection:")
 }
 #[tauri::command]
 pub async fn detect_capabilities(
@@ -1033,6 +1036,11 @@ mod selector_tests {
 
 #[cfg(test)]
 mod experience_tests {
+    #[test]
+    fn automatic_search_requires_intent_not_punctuation(){
+        assert!(!super::search_intent("auto",true,"这个函数如何工作？"));assert!(!super::search_intent("auto",true,"What is recursion?"));
+        assert!(super::search_intent("auto",true,"搜索最新新闻"));assert!(super::search_intent("auto",true,"weather today"));assert!(!super::search_intent("off",true,"搜索天气"));assert!(super::search_intent("force",false,"hello"));
+    }
     #[tokio::test]
     async fn selected_history_and_new_attachments_reach_both_provider_protocols(){
         use super::*;

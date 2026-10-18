@@ -31,6 +31,7 @@ pub fn read(db:&Database)->Result<Settings> {
     let saved=|key:&str,default:&str|->Result<String>{Ok(db.setting(key)?.unwrap_or_else(||default.to_string()))};
     let profile_id=saved("profile_id","")?;
     Ok(Settings {
+        auto_continuations:saved("auto_continuations","1")?.parse::<usize>().unwrap_or(1).min(2),auto_recoveries:saved("auto_recoveries","0")?.parse::<usize>().unwrap_or(0).min(3),
         api_key:String::new(),base_url:saved("base_url","")?,provider:saved("provider","anthropic-compatible")?,model:saved("model","")?,
         thinking:saved("thinking","medium")?,web_search:saved("web_search","true")?=="true",theme:saved("theme","system")?,color_theme:color_theme(saved("color_theme","emerald")?),
         system_prompt:saved("system_prompt","")?,profile_id:profile_id.clone(),search_mode:saved("search_mode","auto")?,
@@ -40,6 +41,7 @@ pub fn read(db:&Database)->Result<Settings> {
     })
 }
 pub fn resolve(db:&Database,mut settings:Settings)->Result<Settings> {
+    settings.auto_continuations=settings.auto_continuations.min(2);settings.auto_recoveries=settings.auto_recoveries.min(3);
     settings.color_theme=color_theme(settings.color_theme);
     if !settings.profile_id.is_empty() {
         let profile=db.profiles()?.into_iter().find(|p|p.id==settings.profile_id).ok_or_else(||anyhow!("此 API 配置已被删除，请重新选择"))?;
@@ -62,8 +64,9 @@ pub fn persist(db:&Database,settings:&Settings,id:Option<&str>)->Result<()> {
 }
 pub fn persist_with_prompt(db:&Database,settings:&Settings,id:Option<&str>,prompt:Option<&str>)->Result<()> {
     let recent=settings.recent_turns.to_string();
+    let continuations=settings.auto_continuations.min(2).to_string();let recoveries=settings.auto_recoveries.min(3).to_string();
     let options=settings.request_options.to_string();
-    let mut values=vec![
+    let mut values=vec![("auto_continuations",continuations.as_str()),("auto_recoveries",recoveries.as_str()),
         ("base_url",settings.base_url.as_str()),("provider",settings.provider.as_str()),("profile_id",settings.profile_id.as_str()),
         ("model",settings.model.as_str()),("thinking",settings.thinking.as_str()),("web_search",if settings.web_search{"true"}else{"false"}),
         ("theme",settings.theme.as_str()),("color_theme",settings.color_theme.as_str()),("system_prompt",settings.system_prompt.as_str()),("search_mode",settings.search_mode.as_str()),
@@ -75,6 +78,9 @@ pub fn persist_with_prompt(db:&Database,settings:&Settings,id:Option<&str>,promp
     let connection_value=selection(settings).to_string();
     let last=id.map(|id|json!(id).to_string());
     if let Some(key)=connection_key.as_ref(){values.push((key.as_str(),connection_value.as_str()));values.push(("v4:lastConversation",last.as_deref().unwrap()))}
+    let context_key=id.map(|id|format!("v6:context:{id}"));
+    let context=serde_json::json!({"contextMode":settings.context_mode,"recentTurns":settings.recent_turns,"selectedMessageIds":settings.selected_message_ids,"selectedAttachmentIds":settings.selected_attachment_ids}).to_string();
+    if let Some(key)=context_key.as_ref(){values.push((key.as_str(),context.as_str()))}
     db.save_settings_and_prompt_atomic(&values,id,prompt)
 }
 pub fn save(db:&Database,settings:Settings,id:Option<&str>)->Result<Settings> {
@@ -87,6 +93,9 @@ pub fn restore(db:&Database,id:&str)->Result<Settings> {
     let mut value=serde_json::to_value(read(db)?)?;
     let snapshot=db.extension(&format!("v4:conversationConnection:{id}"))?;
     if let Some(snapshot)=snapshot.as_object(){for field in FIELDS{if let Some(item)=snapshot.get(*field){value[*field]=item.clone()}}}
+    value["contextMode"]=json!("full");value["recentTurns"]=json!(10);
+    let context=db.extension(&format!("v6:context:{id}"))?;
+    if let Some(context)=context.as_object(){for(key,item)in context{if matches!(key.as_str(),"contextMode"|"recentTurns"|"selectedMessageIds"|"selectedAttachmentIds"){value[key]=item.clone()}}}
     let mut settings:Settings=serde_json::from_value(value)?;
     if !settings.profile_id.is_empty() && !db.profiles()?.iter().any(|p|p.id==settings.profile_id) {
         // History remains readable after deleting a Profile; do not route to another key.

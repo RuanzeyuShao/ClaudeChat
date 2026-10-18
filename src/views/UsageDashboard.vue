@@ -111,6 +111,7 @@ const move = (event: PointerEvent) => { const index = pointerIndex(event); hover
 const down = (event: PointerEvent) => { dragStart.value = pointerIndex(event); dragEnd.value = dragStart.value; chart.value?.setPointerCapture(event.pointerId) }
 const up = (event: PointerEvent) => { if (dragStart.value === null) return; const end = pointerIndex(event), low = Math.min(dragStart.value, end), high = Math.max(dragStart.value, end); if (high - low >= 1) { const offset = zoomStart.value; zoomStart.value = offset + low; zoomEnd.value = offset + high + 1 } dragStart.value = null; dragEnd.value = null }
 const resetZoom = () => { zoomStart.value = 0; zoomEnd.value = null }
+watch([preset,customFrom,customTo],async()=>{if(invalidRange.value)return;try{await chat.refreshUsage(period.value.start.toISOString(),period.value.end.toISOString())}catch(e){loadError.value=friendlyError(e);ui.failure(e)}})
 watch([preset, customFrom, customTo, model, profile, conversation], () => { resetZoom(); hoverIndex.value = null; page.value = 1 })
 
 const groupBy = (kind: 'model' | 'profile') => computed<Group[]>(() => {
@@ -129,7 +130,7 @@ const selectBar = (kind: 'model' | 'profile', id: string) => { if (kind === 'mod
 const pages = computed(() => Math.max(1, Math.ceil(filtered.value.length / pageSize)))
 watch(pages,count=>{page.value=Math.min(page.value,count)})
 const rows = computed(() => filtered.value.slice((page.value - 1) * pageSize, page.value * pageSize))
-onMounted(async () => { refreshDay();dayTimer=setInterval(refreshDay,30000);window.addEventListener('focus',refreshDay);document.addEventListener('visibilitychange',onVisibility);try { await chat.refreshUsage() } catch (error) { loadError.value = friendlyError(error);ui.failure(error) } })
+onMounted(async () => { refreshDay();dayTimer=setInterval(refreshDay,30000);window.addEventListener('focus',refreshDay);document.addEventListener('visibilitychange',onVisibility);try { await chat.refreshUsage(period.value.start.toISOString(),period.value.end.toISOString()) } catch (error) { loadError.value = friendlyError(error);ui.failure(error) } })
 </script>
 
 <template>

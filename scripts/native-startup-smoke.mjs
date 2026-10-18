@@ -1,21 +1,21 @@
 // Verify the production WebView against real Rust IPC and an isolated SQLite database.
 import { chromium } from '@playwright/test'
 import { spawn } from 'node:child_process'
-import { mkdtempSync, mkdirSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { strict as assert } from 'node:assert'
 import { createServer } from 'node:net'
 
-const executable=resolve(process.argv[2] || 'src-tauri/target-v014/release/claude-chat.exe')
-const data=mkdtempSync(join(tmpdir(),'claudechat-v015-smoke-'))
-const output=resolve('dist-release/v0.1.5/screenshots')
+const executable=resolve(process.argv[2] || 'src-tauri/target/release/claude-chat.exe')
+const data=mkdtempSync(join(tmpdir(),'claudechat-v016-smoke-'))
+const output=resolve('dist-release/v0.1.6/screenshots')
 mkdirSync(output,{recursive:true})
 const server=createServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
 const port=server.address().port;await new Promise(resolve=>server.close(resolve))
 let app, browser
 async function launch(){
- app=spawn(executable,[],{windowsHide:true,stdio:'ignore',env:{...process.env,APPDATA:data,WEBVIEW2_USER_DATA_FOLDER:join(data,'webview'),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-port=${port} --remote-allow-origins=*`}})
+ app=spawn(executable,['--data-dir',join(data,'application')],{windowsHide:true,stdio:'ignore',env:{...process.env,APPDATA:data,WEBVIEW2_USER_DATA_FOLDER:join(data,'webview'),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-port=${port} --remote-allow-origins=*`}})
  app.on('error',error=>console.error(error.message))
  const deadline=Date.now()+30000
  while(Date.now()<deadline){try{const response=await fetch(`http://127.0.0.1:${port}/json/version`);if(response.ok)break}catch{}await new Promise(resolve=>setTimeout(resolve,250))}
@@ -24,6 +24,8 @@ async function launch(){
  const page=browser.contexts()[0].pages()[0] || await browser.contexts()[0].waitForEvent('page')
  await page.locator('.sidebar-footer').waitFor()
  await page.locator('.app-boot').waitFor({state:'detached'})
+ assert.ok(existsSync(join(data,'application','claudechat.db')),'explicit isolated database was not created')
+ assert.equal(await page.locator('.sidebar-footer small').innerText(),'v0.1.6')
  assert.equal(await page.locator('.startup-error').count(),0,await page.locator('body').innerText())
  await page.getByRole('heading',{name:'从一个想法开始'}).waitFor()
  return page
@@ -67,7 +69,7 @@ try{
  assert.equal(typeof blank,'string');assert.ok(blank)
  // Allow the normal draft debounce to persist before restarting the native process.
  await page.waitForTimeout(800)
- const drafts=await page.evaluate(()=>window.__TAURI_INTERNALS__.invoke('get_extension',{key:'v4:drafts'}))
+ const drafts=await page.evaluate(()=>window.__TAURI_INTERNALS__.invoke('get_drafts'))
  assert.equal(drafts[blank]?.text,'原生重启保留草稿')
  await page.screenshot({path:join(output,'native-startup.png')})
  await stop()

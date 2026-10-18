@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useChatStore } from '../src/stores/chat'
 import { api } from '../src/services/tauri'
-vi.mock('../src/services/tauri',()=>({api:{isTauri:true,createConversation:vi.fn(),selectConversation:vi.fn(),getTree:vi.fn(),saveExtension:vi.fn(),getExtension:vi.fn()}}))
+vi.mock('../src/services/tauri',()=>({api:{isTauri:true,getUsage:vi.fn(async()=>[]),createConversation:vi.fn(),selectConversation:vi.fn(),getTree:vi.fn(),saveExtension:vi.fn(),getExtension:vi.fn()}}))
 beforeEach(()=>{setActivePinia(createPinia());vi.clearAllMocks();const chat=useChatStore();vi.mocked(api.createConversation).mockImplementation(async()=>({id:crypto.randomUUID(),title:'准备开始',model:'',messages:[],createdAt:'2026-10-14',updatedAt:'2026-10-14',systemPrompt:''}));vi.mocked(api.selectConversation).mockImplementation(async()=>({...chat.settings}));vi.mocked(api.getTree).mockResolvedValue({messages:[],leaf:null});vi.mocked(api.saveExtension).mockResolvedValue(undefined)})
 it('reuses the blank conversation and retains its text and attachments across history navigation',async()=>{
  const chat=useChatStore();await chat.newConversation();const blank=chat.activeId

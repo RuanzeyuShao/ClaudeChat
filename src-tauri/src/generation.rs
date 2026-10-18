@@ -12,7 +12,7 @@ use std::sync::{
     Arc,
 };
 
-pub const MAX_CONTINUATIONS: usize = 8;
+pub const MAX_CONTINUATIONS: usize = 2;
 pub const MAX_RECOVERIES: usize = 3;
 pub const CONTINUE_PROMPT:&str="上一段回答尚未完成。请从断点继续，直接输出尚未完成的内容，不要重复已输出的段落、标题或代码。保持原来的语言、结构和格式；如果位于代码块或公式内部，请继续该块，不要重新打开。完成用户最初的任务后正常结束。";
 pub const CHECK_PROMPT:&str="请检查用户最初的任务与上一条回答：若有遗漏，仅补充尚未完成的内容，不要重写、重复标题或章节；如果已经完整，直接说明已完整。不要重新搜索，不要编造来源。";
@@ -197,7 +197,7 @@ pub async fn stream_seeded(
             },
             |phase, data| match phase {
                 "finish" => reason = data,
-                "call_start" => starts += 1,
+                "call_start" => {starts += 1;on_progress("call_start",data)},
                 "protocol_options"=>{if let Ok(value)=serde_json::from_str::<Value>(&data){accepted_options=value}},
                 "call_usage" => {
                     if let Ok(call) = serde_json::from_str::<Call>(&data) {
@@ -294,9 +294,9 @@ pub async fn stream_seeded(
             Some(Kind::Network | Kind::Stream | Kind::RateLimit | Kind::Gateway)
         );
         let length = completion.status == "length"
-            && continuations < MAX_CONTINUATIONS
+            && continuations < settings.auto_continuations.min(MAX_CONTINUATIONS)
             && !added.trim().is_empty();
-        let retry = recoverable && recoveries < MAX_RECOVERIES && completion.status != "stopped";
+        let retry = recoverable && recoveries < settings.auto_recoveries.min(MAX_RECOVERIES) && completion.status != "stopped";
         if result.is_ok()
             && !previous.is_empty()
             && added.trim().is_empty()

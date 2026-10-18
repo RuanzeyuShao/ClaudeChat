@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs'
-const version=process.argv[2] || '0.1.5'
+const version=process.argv[2] || '0.1.6'
 for(const file of ['package.json','package-lock.json','src-tauri/tauri.conf.json']){
   const value=JSON.parse(readFileSync(file,'utf8'))
   value.version=version

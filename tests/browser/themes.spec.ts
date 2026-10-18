@@ -41,7 +41,7 @@ for(const preset of themePresets)for(const mode of ['light','dark','system'] as 
  await expect(group.getByRole('radio',{name:preset.name,exact:true})).toHaveAttribute('aria-checked','true');await expect(page.locator('.swatch-check')).toHaveCount(1)
  await expect(page.getByRole('dialog',{name:'设置',exact:true})).toHaveCSS('background-color',rgb(preset[mode==='dark'?'dark':'light'].panel))
  await expect(page.getByRole('radiogroup',{name:'外观模式'}).getByRole('radio',{name:{light:'浅色',dark:'深色',system:'跟随系统'}[mode],exact:true})).toHaveCSS('color',rgb(preset[mode==='dark'?'dark':'light']['accent-ink']))
- mkdirSync('dist-release/v0.1.5/screenshots/themes',{recursive:true});await page.screenshot({path:`dist-release/v0.1.5/screenshots/themes/${preset.id}-${mode}.png`})
+ mkdirSync('dist-release/v0.1.6/screenshots/themes',{recursive:true});await page.screenshot({path:`dist-release/v0.1.6/screenshots/themes/${preset.id}-${mode}.png`})
  await assertScreens(page,preset,mode==='dark'?'dark':'light')
  if(mode==='system'){
   await page.emulateMedia({colorScheme:'dark'});await settings(page);await assertScreens(page,preset,'dark');await page.emulateMedia({colorScheme:'light'});await expect(page.locator('html')).toHaveAttribute('data-theme','light');await expect(page.locator('html')).toHaveAttribute('data-color-theme',preset.id)

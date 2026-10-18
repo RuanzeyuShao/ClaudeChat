@@ -3,13 +3,14 @@ import { listen } from '@tauri-apps/api/event'
 import { providerEntry, preference, type ChatProviderId, type ProviderPreference } from '../chatProviders'
 import { api } from '../services/tauri'
 import { useUiStore } from './ui'
-import { friendlyError } from '../utils/experience'
+import { friendlyError, errorDetails } from '../utils/experience'
 import { snapshotSettings, identity, connectionChanged } from '../utils/connection'
 import { validateSearch } from '../utils/searchPolicy'
+import { searchIntent } from '../utils/requestPreview'
 import { themeManager, normalizeAppearance, type Appearance } from '../themes/themeManager'
 import type { Attachment, Conversation, Message, Settings, ThemeMode, ApiProfile, Usage, Preset, Organization, MessageReference, RequestIdentity, GenerationInfo } from '../types'
 
-const defaultSettings: Settings = { apiKey: '', baseUrl: '', provider: 'anthropic-compatible', model: '', thinking: 'medium', webSearch: true, theme: 'system', colorTheme: 'emerald', systemPrompt: '', profileId: '', searchMode: 'auto', searchProvider: 'claude', searchBaseUrl: '', contextMode: 'full', recentTurns: 10, selectedMessageIds: [], selectedAttachmentIds: [] }
+const defaultSettings: Settings = { autoContinuations:1,autoRecoveries:0, apiKey: '', baseUrl: '', provider: 'anthropic-compatible', model: '', thinking: 'medium', webSearch: true, theme: 'system', colorTheme: 'emerald', systemPrompt: '', profileId: '', searchMode: 'auto', searchProvider: 'claude', searchBaseUrl: '', contextMode: 'full', recentTurns: 10, selectedMessageIds: [], selectedAttachmentIds: [] }
 const appearanceWrites=new WeakMap<object,Promise<unknown>>()
 const listeners: (() => void)[] = []
 let frame = 0
@@ -18,7 +19,7 @@ export type RequestStatus = 'idle' | 'connecting' | 'searching' | 'thinking' | '
 interface ReplyBranch { parentId: string | null; rollbackLeaf: string | null; previousMessages?:Message[] }
 interface FailedReply {conversationId:string;content:string;attachments:Attachment[];persistUser:boolean;branch:ReplyBranch}
 export const useChatStore = defineStore('chat', {
-  state: () => ({ conversations: [] as Conversation[], activeId: '' as string, blankConversationId: '', fontSize: 14, appearanceBusy:false, appearanceRevision:0, savedAppearance:null as Appearance|null, settings: { ...defaultSettings }, profiles: [] as ApiProfile[], usage: [] as Usage[], loading: false, error: '', initialized: false, profileBusy: false, activeRequestId:'',requestCompletion:null as GenerationInfo | null,failedReply:null as FailedReply | null,requestSettings:null as Settings | null,requestOrigins:{} as Record<string,RequestIdentity>,pendingOrigins:{} as Record<string,RequestIdentity>, usageOrigins: {} as Record<string,{input:string;output:string;thinking:string}>, continuationNotice:'', status: 'idle' as RequestStatus, stopping: false, sendMode: 'enter' as 'enter' | 'ctrl-enter', drafts: {} as Record<string, { text: string; attachments: Attachment[] }>, providerPreferences: {} as Partial<Record<ChatProviderId, ProviderPreference>>, trees: {} as Record<string, Message[]>, presets: [] as Preset[], organization: {} as Record<string, Organization>, references: [] as MessageReference[] }),
+  state: () => ({ conversations: [] as Conversation[], rawError:'', requestCalls:0, nextSearchMode:null as Settings['searchMode']|null, contextSelections:{} as Record<string,Pick<Settings,'contextMode'|'recentTurns'|'selectedMessageIds'|'selectedAttachmentIds'>>, activeId: '' as string, blankConversationId: '', fontSize: 14, appearanceBusy:false, appearanceRevision:0, savedAppearance:null as Appearance|null, settings: { ...defaultSettings }, profiles: [] as ApiProfile[], usage: [] as Usage[], loading: false, error: '', initialized: false, profileBusy: false, activeRequestId:'',requestCompletion:null as GenerationInfo | null,failedReply:null as FailedReply | null,requestSettings:null as Settings | null,requestOrigins:{} as Record<string,RequestIdentity>,pendingOrigins:{} as Record<string,RequestIdentity>, usageOrigins: {} as Record<string,{input:string;output:string;thinking:string}>, continuationNotice:'', status: 'idle' as RequestStatus, stopping: false, sendMode: 'enter' as 'enter' | 'ctrl-enter', drafts: {} as Record<string, { text: string; attachments: Attachment[] }>, providerPreferences: {} as Partial<Record<ChatProviderId, ProviderPreference>>, trees: {} as Record<string, Message[]>, presets: [] as Preset[], organization: {} as Record<string, Organization>, references: [] as MessageReference[] }),
   getters: { active(state): Conversation | undefined { return state.conversations.find(x => x.id === state.activeId) } },
   actions: {
     async initialize() {
@@ -29,9 +30,9 @@ export const useChatStore = defineStore('chat', {
       if (!api.isTauri) {Object.assign(this.settings,themeManager.cached());this.savedAppearance=normalizeAppearance(this.settings);this.applyTheme(this.settings.theme);await this.newConversation();return}
       this.settings = { ...defaultSettings, ...await api.getSettings() }
       Object.assign(this.settings,normalizeAppearance(this.settings));this.savedAppearance=normalizeAppearance(this.settings)
-      this.drafts = await api.getExtension<typeof this.drafts>('v4:drafts') || {}
+      this.drafts = await api.getDrafts() || {}
       this.sendMode = await api.getExtension<typeof this.sendMode>('v4:sendMode') || 'enter'
-      this.providerPreferences=await api.getExtension<Partial<Record<ChatProviderId,ProviderPreference>>>('v3:chatProviders') || {}; this.presets = await api.getExtension<Preset[]>('v3:presets') || []; this.organization = await api.getExtension<Record<string, Organization>>('v3:organization') || {}; this.profiles = await api.getProfiles(); this.usage = await api.getUsage()
+      this.providerPreferences=await api.getExtension<Partial<Record<ChatProviderId,ProviderPreference>>>('v3:chatProviders') || {}; this.presets = await api.getExtension<Preset[]>('v3:presets') || []; this.organization = await api.getExtension<Record<string, Organization>>('v3:organization') || {}; this.profiles = await api.getProfiles(); await this.refreshUsage()
       this.requestOrigins=await api.getExtension<Record<string,RequestIdentity>>('v4:requestOrigins') || {}
       await this.loadUsageOrigins()
       listeners.push(await listen<{id:string;origin:{input:string;output:string;thinking:string}}>('chat-usage-origin',({payload})=>{this.usageOrigins[payload.id]=payload.origin}))
@@ -40,6 +41,7 @@ export const useChatStore = defineStore('chat', {
       this.blankConversationId = await api.getExtension<string>('v5:blankConversation') || ''
       const lastId=await api.getExtension<string>('v4:lastConversation')
       if (this.conversations.length) await this.select(this.conversations.some(c=>c.id===lastId)?lastId!:this.conversations[0].id); else await this.newConversation()
+      listeners.push(await listen<{conversationId:string;requestId:string}>('chat-call-start',({payload})=>{if(this.activeId===payload.conversationId && this.activeRequestId===payload.requestId)this.requestCalls++}))
       listeners.push(await listen<{id:string;request:RequestIdentity}>('chat-request-origin',({payload})=>{this.requestOrigins[payload.id]=payload.request}))
       listeners.push(await listen<{conversationId:string;requestId:string;request:RequestIdentity}>('chat-request',({payload})=>{if(this.loading && this.activeId===payload.conversationId && payload.requestId===this.activeRequestId && this.requestSettings){Object.assign(this.requestSettings,payload.request);const message=this.active?.messages.at(-1);if(message?.pending)this.pendingOrigins[message.id]=payload.request}}))
       listeners.push(await listen<{ conversationId: string; requestId:string; delta: string }>('chat-delta', ({ payload }) => {
@@ -72,7 +74,33 @@ export const useChatStore = defineStore('chat', {
       deltas.clear()
     },
     dispose() { this.flushDeltas(); listeners.splice(0).forEach(unlisten => unlisten()); if(this.loading)void this.stop(); this.initialized=false },
-    async persistDrafts() { if (api.isTauri) await api.saveExtension('v4:drafts', this.drafts) },
+    async persistDrafts(id?:string) {
+      id=id || this.activeId
+      if(!id || !this.drafts[id] || !this.conversations.some(c=>c.id===id))return
+      const draft=this.drafts[id];const value={text:draft.text,attachments:draft.attachments.map(({data:_data,...a})=>({...a,text:a.text?.slice(0,16000)}))}
+      if(new TextEncoder().encode(JSON.stringify(value)).length>256*1024)throw new Error('单条草稿最多 256 KB，请缩短文字')
+      if(api.isTauri)await api.saveDraft(id,value)
+    },
+    async persistContext(){
+      if(!this.activeId)return
+      const {contextMode,recentTurns,selectedMessageIds,selectedAttachmentIds}=this.settings
+      const value={contextMode,recentTurns,selectedMessageIds:[...selectedMessageIds],selectedAttachmentIds:[...selectedAttachmentIds]}
+      this.contextSelections[this.activeId]=value
+      if(api.isTauri)await api.saveExtension(`v6:context:${this.activeId}`,value)
+    },
+    restoreLocalContext(id:string){Object.assign(this.settings,{contextMode:'full',recentTurns:10,selectedMessageIds:[],selectedAttachmentIds:[]},this.contextSelections[id]);this.nextSearchMode=null},
+    effectiveSettings():Settings {const mode=this.nextSearchMode;return {...this.settings,...(mode?{searchMode:mode,webSearch:mode!=='off'}:{})}},
+    async deleteTurn(message:Message){
+      if(this.loading || this.profileBusy || !this.active)return
+      const id=this.activeId
+      if(await useUiStore().request({title:'删除此轮？',description:'此轮问题、回答及其后续分支将永久删除，历史费用记录保留。',danger:true,confirm:'删除此轮'})===null)return
+      if(this.loading || this.profileBusy || this.activeId!==id)return
+      try{if(api.isTauri){await api.deleteTurn(id,message.id);await this.refreshTree(id)}else{
+        const all=this.trees[id] || this.active.messages;const root=message.role==='assistant'?all.find(m=>m.id===message.parentId) || message:message
+        const removed=new Set([root.id]);let before=0;while(before!==removed.size){before=removed.size;for(const m of all)if(m.parentId && removed.has(m.parentId))removed.add(m.id)}
+        this.trees[id]=all.filter(m=>!removed.has(m.id));this.active.messages=this.active.messages.filter(m=>!removed.has(m.id))
+      }}catch(e){useUiStore().failure(e)}
+    },
     async setSendMode(mode: 'enter' | 'ctrl-enter') { if (api.isTauri) await api.saveExtension('v4:sendMode',mode); this.sendMode=mode },
     async applyProviderPreference(id: ChatProviderId, value: ProviderPreference) {
       if (this.loading || this.profileBusy) throw new Error('请等待当前操作完成')
@@ -108,7 +136,7 @@ export const useChatStore = defineStore('chat', {
         const now = new Date().toISOString()
         const item: Conversation = api.isTauri ? await api.createConversation(this.settings.model) : { id: crypto.randomUUID(), title: '准备开始', model: this.settings.model, createdAt: now, updatedAt: now, messages: [], systemPrompt: '' }
         const settings=api.isTauri?await api.selectConversation(item.id):this.settings
-        this.acceptSettings(settings);item.model=this.settings.model
+        this.nextSearchMode=null;this.acceptSettings(settings);item.model=this.settings.model
         this.conversations.unshift(item);this.references=[];this.settings.selectedMessageIds=[];this.settings.selectedAttachmentIds=[];this.activeId=item.id;this.error='';this.blankConversationId=item.id
         if(api.isTauri)await api.saveExtension('v5:blankConversation',item.id)
       }finally{this.profileBusy=false}
@@ -116,9 +144,9 @@ export const useChatStore = defineStore('chat', {
     async select(id:string) {
       if(this.loading || this.profileBusy || !this.conversations.some(c=>c.id===id))return
       this.profileBusy=true
-      try{const settings=api.isTauri?await api.selectConversation(id):{...this.settings,selectedMessageIds:[],selectedAttachmentIds:[]};this.acceptSettings(settings);this.activeId=id;this.references=[];this.error='';if(this.active)this.active.model=this.settings.model;if(api.isTauri)await this.refreshTree(id)}finally{this.profileBusy=false}
+      try{const settings=api.isTauri?await api.selectConversation(id):{...this.settings,selectedMessageIds:[],selectedAttachmentIds:[]};this.acceptSettings(settings);if(!api.isTauri)this.restoreLocalContext(id);this.nextSearchMode=null;this.activeId=id;this.references=[];this.error='';if(this.active)this.active.model=this.settings.model;if(api.isTauri){await this.refreshTree(id);await this.refreshUsage(undefined,undefined,id)}}finally{this.profileBusy=false}
     },
-    async remove(id: string) { if (this.loading || this.profileBusy) return; if (api.isTauri) await api.deleteConversation(id); this.conversations = this.conversations.filter(x => x.id !== id);delete this.trees[id];delete this.organization[id];delete this.drafts[id];void this.persistDrafts().catch(useUiStore().failure);if(api.isTauri)await api.saveExtension('v3:organization',this.organization); if (this.activeId === id) this.activeId = ''; if (!this.conversations.length) await this.newConversation(); else if (!this.activeId) await this.select(this.conversations[0].id) },
+    async remove(id: string) { if (this.loading || this.profileBusy) return; if (api.isTauri) await api.deleteConversation(id); this.conversations = this.conversations.filter(x => x.id !== id);delete this.trees[id];delete this.organization[id];delete this.drafts[id];delete this.contextSelections[id];if(api.isTauri)await api.saveExtension('v3:organization',this.organization); if (this.activeId === id) this.activeId = ''; if (!this.conversations.length) await this.newConversation(); else if (!this.activeId) await this.select(this.conversations[0].id) },
     async rename(id: string, title: string) { if (api.isTauri) await api.renameConversation(id, title); const item = this.conversations.find(x => x.id === id); if (item) item.title = title },
     async setConversationPrompt(prompt: string) { if (!this.active) return; const item=this.active;if (api.isTauri) await api.setConversationPrompt(item.id, prompt);item.systemPrompt = prompt },
     async setModel(model: string) {
@@ -143,7 +171,12 @@ export const useChatStore = defineStore('chat', {
     },
     async refreshProfiles() { if (api.isTauri) this.profiles = await api.getProfiles() },
     async loadUsageOrigins() { if(api.isTauri)this.usageOrigins=await api.getExtension<typeof this.usageOrigins>('v4:usageOrigins') || {} },
-    async refreshUsage() { if (!api.isTauri) return; const saved = await api.getUsage(); const byId = new Map([...saved, ...this.usage].map(item => [item.id, item])); this.usage = [...byId.values()].sort((a,b) => b.createdAt.localeCompare(a.createdAt)) },
+    async refreshUsage(since?:string,until?:string,conversationId?:string) {
+      if(!api.isTauri)return
+      const start=since || (conversationId?undefined:new Date(Date.now()-31*86400000).toISOString())
+      let offset=0
+      while(true){const page=await api.getUsage({offset,since:start,until,conversationId});const byId=new Map([...this.usage,...page].map(item=>[item.id,item]));this.usage=[...byId.values()].sort((a,b)=>b.createdAt.localeCompare(a.createdAt));if(page.length<500)break;offset+=page.length}
+    },
     async switchProfile(id: string) {
       if(this.loading)throw new Error('请等待当前回答完成后再切换 API 配置')
       const p=this.profiles.find(x=>x.id===id);if(!p)throw new Error('此 API 配置已不存在，请重新选择')
@@ -222,14 +255,14 @@ export const useChatStore = defineStore('chat', {
         throw error
       }finally{if(revision===this.appearanceRevision)this.appearanceBusy=false}
     },
-    validateSend() {
+    validateSend(content='') {
       if(api.isTauri && (!this.settings.baseUrl || !this.settings.model))throw new Error('请先在设置中添加并启用 API 配置')
       if(api.isTauri && this.settings.profileId && !this.profiles.find(p=>p.id===this.settings.profileId)?.hasKey)throw new Error('当前 API 配置缺少密钥，请在设置中补充 API Key')
-      validateSearch(this.settings)
+      const request=this.effectiveSettings();if(searchIntent(request,content))validateSearch(request)
     },
     async send(content: string, attachments: Attachment[] = [], branch?: ReplyBranch) {
       if (!this.active || this.loading || this.profileBusy || (!content.trim() && !attachments.length)) return
-      try{this.validateSend()}catch(e){this.error=friendlyError(e);return}
+      try{this.validateSend(content)}catch(e){this.rawError=errorDetails(e);this.error=friendlyError(e);return}
       if(branch){
         const branchParent=branch.parentId
         const index=branchParent===null?-1:this.active.messages.findIndex(m=>m.id===branchParent)
@@ -252,7 +285,21 @@ export const useChatStore = defineStore('chat', {
       while (cursor && !seen.has(cursor)) { seen.add(cursor); const node = tree.messages.find(m => m.id === cursor); if (!node) break; path.unshift(node); cursor = node.parentId || null }
       item.messages = path
     },
-    async jumpNode(id: string) { if (this.loading || this.profileBusy || !this.active) return; if (api.isTauri) {await api.selectBranch(this.activeId,id);await this.refreshTree(this.activeId)} else {const all=this.trees[this.activeId] || [];const path:Message[]=[];let node=all.find(m=>m.id===id);while(node){path.unshift(node);node=all.find(m=>m.id===node?.parentId)}this.active.messages=path} },
+    async jumpNode(id:string){
+      const node=(this.trees[this.activeId] || this.active?.messages || []).find(m=>m.id===id)
+      const element=Array.from(document.querySelectorAll<HTMLElement>('[data-message-id]')).find(el=>el.dataset.messageId===id)
+      if(element){window.dispatchEvent(new Event('chat-jump-message'));element.scrollIntoView({behavior:'smooth',block:'center'});element.classList.add('reference-highlight');setTimeout(()=>element.classList.remove('reference-highlight'),1800)}
+      else if(node)await useUiStore().request({title:'引用来源（其他分支）',value:node.content,multiline:true,readonly:true,confirm:'关闭'})
+      else useUiStore().failure(new Error('引用来源已删除或不可用'))
+    },
+    async restoreNode(id:string){
+      if(this.loading || this.profileBusy || !this.active)return
+      const conversationId=this.activeId
+      if(await useUiStore().request({title:'恢复此节点的上下文？',description:'后续消息将保留在对话树中，新消息会从所选节点继续。',confirm:'恢复上下文'})===null)return
+      if(this.activeId!==conversationId || this.loading || this.profileBusy)return
+      try{await this.activateNode(id)}catch(e){useUiStore().failure(e)}
+    },
+    async activateNode(id: string) { if (this.loading || this.profileBusy || !this.active) return; if (api.isTauri) {await api.selectBranch(this.activeId,id);await this.refreshTree(this.activeId)} else {const all=this.trees[this.activeId] || [];const path:Message[]=[];let node=all.find(m=>m.id===id);while(node){path.unshift(node);node=all.find(m=>m.id===node?.parentId)}this.active.messages=path} },
     versions(message: Message): Message[] { return (this.trees[this.activeId] || this.active?.messages || []).filter(m => m.role === message.role && (m.parentId || null) === (message.parentId || null)) },
     async selectVersion(message: Message, delta: number) {
       if (this.loading || this.profileBusy || !this.active) return
@@ -264,9 +311,11 @@ export const useChatStore = defineStore('chat', {
     },
     async regenerate(message?: Message) {
       if (!this.active || this.loading || this.profileBusy) return
-      try{this.validateSend()}catch(e){this.error=friendlyError(e);return}
+      try{this.validateSend()}catch(e){this.rawError=errorDetails(e);this.error=friendlyError(e);return}
       const last = message || this.active.messages.at(-1); if (!last || last.role !== 'assistant') return
+      if(last.id!==this.active.messages.at(-1)?.id){const id=this.activeId;if(await useUiStore().request({title:'从历史回答重新生成？',description:'后续消息会保留在原分支，对话将切换到新的回答分支。',confirm:'创建新回答'})===null)return;if(id!==this.activeId || this.loading || this.profileBusy)return}
       const parent = this.active.messages.find(m => m.id === last.parentId); if (!parent) return
+      try{this.validateSend(parent.content)}catch(e){this.rawError=errorDetails(e);this.error=friendlyError(e);return}
       const branch:ReplyBranch={parentId:parent.id,rollbackLeaf:this.active.messages.at(-1)?.id || null,previousMessages:[...this.active.messages]}
       const index = this.active.messages.findIndex(m => m.id === parent.id); this.active.messages = this.active.messages.slice(0, index + 1)
       const assistant: Message = {id: crypto.randomUUID(), parentId: parent.id, role: 'assistant', content: '', createdAt: new Date().toISOString(), pending: true}
@@ -279,7 +328,7 @@ export const useChatStore = defineStore('chat', {
       const content = edited ?? await useUiStore().request({title:'编辑并创建新分支',value:message.content,multiline:true,confirm:'重发'}); if (content === null || !content.trim()) return
       if(this.activeId!==conversationId || this.loading || this.profileBusy || !this.active)return
       const index=this.active.messages.findIndex(m=>m.id===message.id);if(index<0)return
-      try{this.validateSend()}catch(e){this.error=friendlyError(e);return}
+      try{this.validateSend(content)}catch(e){this.rawError=errorDetails(e);this.error=friendlyError(e);return}
       const oldReferences=this.references
       this.references=[...(message.references || [])]
       const accepted=await this.send(content,message.attachments || [],{parentId:this.active.messages[index-1]?.id || null,rollbackLeaf:this.active.messages.at(-1)?.id || null})
@@ -298,10 +347,10 @@ export const useChatStore = defineStore('chat', {
       if(this.loading || this.profileBusy || !this.active || this.active.messages.at(-1)?.id!==message.id)return
       const generation=message.generation || (message.usageId?this.requestOrigins[message.usageId]?.generation:undefined)
       if(generation?.status==='blocked')return
-      try{this.validateSend()}catch(e){this.error=friendlyError(e);return}
+      try{this.validateSend()}catch(e){this.rawError=errorDetails(e);this.error=friendlyError(e);return}
       this.loading=true;this.stopping=false;this.error='';this.status='continuing';this.continuationNotice=checkCompletion?'正在检查并继续':'正在继续生成';message.pending=true
       if(!api.isTauri){message.pending=false;this.loading=false;this.status='incomplete';return}
-      this.requestCompletion=null;this.activeRequestId=crypto.randomUUID();this.requestSettings=snapshotSettings(this.settings)
+      this.requestCompletion=null;this.requestCalls=0;this.activeRequestId=crypto.randomUUID();this.requestSettings=snapshotSettings(this.settings)
       const conversationId=this.activeId,originalContent=message.content
       try {
         const result=await api.sendMessage(conversationId,'',this.requestSettings,false,[],null,[],this.activeRequestId,message.id,checkCompletion)
@@ -309,12 +358,12 @@ export const useChatStore = defineStore('chat', {
         const completion=result || this.requestCompletion;const latest=this.active?.messages.at(-1);if(latest && completion)latest.generation=completion
         this.status=this.stopping || completion?.status==='stopped'?'stopped':completion?.status==='complete'?'completed':'incomplete'
       }catch(e){
-        this.flushDeltas();this.error=friendlyError(e);message.pending=false;message.generation={status:'interrupted',reason:'interrupted',continuations:0,error:this.error};this.status='incomplete'
+        this.flushDeltas();this.rawError=errorDetails(e);this.error=friendlyError(e);message.pending=false;message.generation={status:'interrupted',reason:'interrupted',continuations:0,error:this.error};this.status='incomplete'
         // Keep visible data when local persistence fails; never restore an older snapshot over it.
         if(message.content.length<originalContent.length)message.content=originalContent
       }finally{this.loading=false;this.stopping=false;this.activeRequestId='';this.requestSettings=null;this.requestCompletion=null;message.pending=false;this.continuationNotice=''}
     },
-    quote(message: Message, selectedText?: string) { const text = selectedText || message.content; this.references = [{messageId: message.id, text}] },
+    quote(message: Message, selectedText?: string) { const text = selectedText || message.content; if(!this.references.some(r=>r.messageId===message.id && r.text===text))this.references.push({messageId: message.id, text}) },
     async organize(id: string, value: Organization) { const next={...this.organization,[id]:value};if (api.isTauri) await api.saveExtension('v3:organization', next);this.organization=next },
     async savePreset(preset: Preset) { const next=this.presets.filter(p=>p.id!==preset.id);const index=this.presets.findIndex(p=>p.id===preset.id);next.splice(index<0?next.length:index,0,preset);if(api.isTauri)await api.saveExtension('v3:presets',next);this.presets=next },
     async deletePreset(id: string) { const next=this.presets.filter(p=>p.id!==id);if(api.isTauri)await api.saveExtension('v3:presets',next);this.presets=next },
@@ -331,7 +380,7 @@ export const useChatStore = defineStore('chat', {
         if(!profile.hasKey)throw new Error('请先为预设绑定的 API 配置填写 API Key')
         settings={...settings,profileId:profile.id,baseUrl:profile.baseUrl,provider:profile.provider,model:profile.model,thinking:profile.thinking,requestOptions:profile.requestOptions,searchModel:''}
         if(['grok','deepseek','openai-compatible'].includes(profile.provider))settings={...settings,searchProvider:'searxng',searchMode:settings.searchBaseUrl?'auto':'off',webSearch:!!settings.searchBaseUrl}
-      }else if(preset.profileId==='')settings={...settings,profileId:''}
+      }else if(preset.profileId==='')throw new Error('此预设绑定了旧版全局配置，请重新绑定可用 API Profile')
       if(preset.model!==undefined){if(!preset.model.trim())throw new Error('预设模型 ID 不能为空');settings.model=preset.model.trim()}
       if(preset.profileId && !settings.model.trim())throw new Error('请先为预设绑定的 API 配置选择模型')
       if(preset.thinking)settings.thinking=preset.thinking
@@ -348,8 +397,8 @@ export const useChatStore = defineStore('chat', {
     },
     async requestReply(content: string, assistant: Message, persistUser: boolean, attachments: Attachment[] = [], branch?: ReplyBranch) {
       if (!this.active) return
-      const request=snapshotSettings(this.settings)
-      this.requestCompletion=null;this.continuationNotice=''
+      const request=snapshotSettings(this.effectiveSettings());this.nextSearchMode=null;this.rawError=''
+      this.requestCompletion=null;this.continuationNotice='';this.requestCalls=0
       this.activeRequestId=assistant.id
       this.requestSettings=request
       this.pendingOrigins[assistant.id]=identity(request,this.profiles.find(p=>p.id===request.profileId)?.name)
@@ -361,8 +410,8 @@ export const useChatStore = defineStore('chat', {
       } catch (e) {
         this.flushDeltas()
         let restorationError=''
-        try{if(assistant.content || assistant.reasoningContent){assistant.pending=false;assistant.generation={status:'interrupted',reason:'local_save_failed',continuations:0,error:friendlyError(e)}}else{if(branch)await api.selectBranch(conversationId,branch.rollbackLeaf);await this.refreshTree(conversationId)}}catch(restore){if(branch?.previousMessages){const conversation=this.conversations.find(c=>c.id===conversationId);if(conversation)conversation.messages=branch.previousMessages}restorationError=`；恢复原路径失败：${friendlyError(restore)}`}
-        if(this.activeId===conversationId)this.error=friendlyError(e)+restorationError
+        try{if(assistant.content || assistant.reasoningContent){assistant.pending=false;assistant.generation={status:'interrupted',reason:'local_save_failed',continuations:0,error:errorDetails(e)}}else{if(branch)await api.selectBranch(conversationId,branch.rollbackLeaf);await this.refreshTree(conversationId)}}catch(restore){if(branch?.previousMessages){const conversation=this.conversations.find(c=>c.id===conversationId);if(conversation)conversation.messages=branch.previousMessages}restorationError=`；恢复原路径失败：${friendlyError(restore)}`}
+        if(this.activeId===conversationId){this.rawError=errorDetails(e);this.error=friendlyError(e)+restorationError}
         assistant.pending=false;this.status=this.stopping?'stopped':'failed'
         if(branch && !this.stopping)this.failedReply={conversationId,content,attachments,persistUser,branch}
         if(!this.stopping)useUiStore().notify(this.error,'error',()=>{
@@ -370,11 +419,11 @@ export const useChatStore = defineStore('chat', {
           if(branch && persistUser)void this.send(content,attachments,branch)
           else if(branch){const original=this.active?.messages.find(m=>m.role==='assistant' && m.parentId===branch.parentId);if(original)void this.regenerate(original)}
           else void this.retry()
-        })
+        },'重试',this.rawError)
       }
       finally { this.loading = false; this.stopping=false;this.requestCompletion=null;this.requestSettings=null;this.activeRequestId='';delete this.pendingOrigins[assistant.id] }
     },
-    async retry() { if(this.loading || this.profileBusy)return;const failed=this.failedReply;if(failed && failed.conversationId===this.activeId){if(failed.persistUser){await this.send(failed.content,failed.attachments,failed.branch);return}const original=this.active?.messages.find(m=>m.role==='assistant' && m.parentId===failed.branch.parentId);if(original){await this.regenerate(original);return}}const last=this.active?.messages.at(-1); if(!last)return;const generation=last.generation || (last.usageId?this.requestOrigins[last.usageId]?.generation:undefined);if(last.role==='assistant' && generation && generation.status!=='complete' && generation.status!=='blocked'){await this.continueReply(last);return}try{this.validateSend()}catch(e){this.error=friendlyError(e);return} if(last.role==='assistant')await this.regenerate(last);else if(last.role==='user'){const assistant:Message={id:crypto.randomUUID(),parentId:last.id,role:'assistant',content:'',createdAt:new Date().toISOString(),pending:true};this.active!.messages.push(assistant);this.loading=true;this.stopping=false;this.error='';this.status='connecting';await this.requestReply(last.content,assistant,false)} },
+    async retry() { if(this.loading || this.profileBusy)return;const failed=this.failedReply;if(failed && failed.conversationId===this.activeId){if(failed.persistUser){await this.send(failed.content,failed.attachments,failed.branch);return}const original=this.active?.messages.find(m=>m.role==='assistant' && m.parentId===failed.branch.parentId);if(original){await this.regenerate(original);return}}const last=this.active?.messages.at(-1); if(!last)return;const generation=last.generation || (last.usageId?this.requestOrigins[last.usageId]?.generation:undefined);if(last.role==='assistant' && generation && generation.status!=='complete' && generation.status!=='blocked'){await this.continueReply(last);return}try{this.validateSend()}catch(e){this.rawError=errorDetails(e);this.error=friendlyError(e);return} if(last.role==='assistant')await this.regenerate(last);else if(last.role==='user'){const assistant:Message={id:crypto.randomUUID(),parentId:last.id,role:'assistant',content:'',createdAt:new Date().toISOString(),pending:true};this.active!.messages.push(assistant);this.loading=true;this.stopping=false;this.error='';this.status='connecting';await this.requestReply(last.content,assistant,false)} },
     async stop() { if(!this.loading || this.stopping)return; this.stopping=true; try { if (api.isTauri) { await api.stopGeneration(); return } this.loading = false; this.stopping=false;this.requestSettings=null;this.activeRequestId=''; this.status='stopped'; const msg = this.active?.messages.at(-1); if (msg) msg.pending = false } catch(e){this.stopping=false;useUiStore().failure(e)} }
   }
 })

@@ -31,7 +31,20 @@ impl Secrets for KeyringSecrets {
     }
 }
 fn entry(id: &str) -> Result<keyring::Entry> {
-    Ok(keyring::Entry::new("ClaudeChat", &format!("profile:{id}"))?)
+    let account=if id.is_empty(){"api-key".to_string()}else{format!("profile:{id}")};
+    Ok(keyring::Entry::new("ClaudeChat", &account)?)
+}
+
+pub fn clear_all(db:&Database,secrets:&impl Secrets)->Result<()> {
+    let mut ids:Vec<String>=db.profiles()?.into_iter().map(|p|p.id).collect();ids.push(String::new());
+    let previous=ids.iter().map(|id|Ok((id.clone(),secrets.read(id)?))).collect::<Result<Vec<_>>>()?;
+    let result=(||{for id in &ids{secrets.remove(id)?;}db.clear_all()})();
+    if let Err(error)=result {
+        let mut failed=false;for(id,key)in &previous{if restore(secrets,id,key.as_deref()).is_err(){failed=true}}
+        if failed{return Err(anyhow!("清空数据失败，且部分密钥恢复失败，请重新填写 API Key"))}
+        return Err(error)
+    }
+    Ok(())
 }
 
 pub fn normalize(mut profile: ApiProfile) -> Result<ApiProfile> {

@@ -22,6 +22,6 @@ test('long black titles scroll to the end and reset, short titles stay still',as
  const result=await text.evaluate(n=>{const animation=n.getAnimations()[0];animation.pause();animation.currentTime=Number(animation.effect!.getTiming().duration)*.9;const box=n.parentElement!.getBoundingClientRect(),inner=n.getBoundingClientRect();return {end:inner.right,edge:box.right}});expect(result.end).toBeCloseTo(result.edge,0)
  await page.mouse.move(600,20);await expect(text).toHaveCSS('transform','none');await expect(text).toHaveCSS('text-overflow','ellipsis')
  await page.locator('.conversation-title').last().hover();await expect(page.locator('.conversation-title-text').last()).toHaveCSS('animation-name','none')
- mkdirSync('dist-release/v0.1.5/screenshots',{recursive:true});await page.screenshot({path:'dist-release/v0.1.5/screenshots/titles.png'})
+ mkdirSync('dist-release/v0.1.6/screenshots',{recursive:true});await page.screenshot({path:'dist-release/v0.1.6/screenshots/titles.png'})
  await page.emulateMedia({reducedMotion:'reduce'});await title.hover();await expect(text).toHaveCSS('animation-name','none');await expect(title).toHaveCSS('white-space','normal')
 })

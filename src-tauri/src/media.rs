@@ -32,7 +32,7 @@ async fn fetch(value:&str,allow_private:bool)->Result<RemoteImage,String>{
             .await.map_err(|_|"图片地址解析超时")?.map_err(|_|"无法解析图片地址")?.collect();
         if addresses.is_empty() || (!allow_private && addresses.iter().any(|a|!public_ip(a.ip()))){return Err("图片地址不可访问，请使用公开图片直链".into());}
         let client=reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).timeout(Duration::from_secs(15))
-            .user_agent("ClaudeChat/0.1.4 (https://github.com/RuanzeyuShao/ClaudeChat)").resolve_to_addrs(host,&addresses).build().map_err(|_|"图片加载器初始化失败")?;
+            .user_agent(concat!("ClaudeChat/",env!("CARGO_PKG_VERSION")," (https://github.com/RuanzeyuShao/ClaudeChat)")).resolve_to_addrs(host,&addresses).build().map_err(|_|"图片加载器初始化失败")?;
         let response=client.get(url.clone()).header(reqwest::header::ACCEPT,"image/avif,image/webp,image/*;q=0.9,*/*;q=0.1").send().await.map_err(|_|"图片下载失败，请检查网络或重试")?;
         if response.status().is_redirection(){let location=response.headers().get(reqwest::header::LOCATION).and_then(|h|h.to_str().ok()).ok_or("图片跳转地址缺失")?;url=crate::links::http_url(url.join(location).map_err(|_|"图片跳转地址无效")?.as_str())?;continue}
         if response.status()==reqwest::StatusCode::NOT_FOUND{return Err("图片不存在（404），请打开来源或更换链接".into());}
