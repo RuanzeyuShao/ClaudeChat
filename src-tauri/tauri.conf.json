@@ -1,9 +1,43 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "ClaudeChat",
-  "version": "0.1.3",
+  "version": "0.1.6",
   "identifier": "com.ruanzeyu.claudechat",
-  "build": { "beforeDevCommand": "npm run dev", "beforeBuildCommand": "npm run build", "devUrl": "http://localhost:1420", "frontendDist": "../dist" },
-  "app": { "windows": [{ "title": "ClaudeChat", "width": 1200, "height": 800, "minWidth": 800, "minHeight": 600 }], "security": { "csp": null } },
-  "bundle": { "active": true, "targets": "all", "icon": ["icons/icon.ico"], "windows": { "wix": { "language": ["zh-CN"] } } }
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "ClaudeChat",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 640,
+        "minHeight": 480
+      }
+    ],
+    "security": {
+      "csp": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src ipc: http://ipc.localhost https://ipc.localhost; frame-src 'self' data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'",
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src ipc: http://ipc.localhost https://ipc.localhost http://localhost:1420 ws://localhost:1420 http://127.0.0.1:1420 ws://127.0.0.1:1420; frame-src 'self' data: blob:; object-src 'none'; base-uri 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "wix": {
+        "language": [
+          "zh-CN"
+        ]
+      }
+    }
+  }
 }

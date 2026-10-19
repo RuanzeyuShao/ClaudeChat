@@ -10,3 +10,6 @@ tauri-build*.log
 tauri-build*.err.log
 
 .target-v013/
+dist-release/
+test-results/
+playwright-report/

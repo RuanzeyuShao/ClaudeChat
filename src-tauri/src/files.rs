@@ -5,10 +5,11 @@ use quick_xml::{events::Event, Reader};
 use std::{collections::HashMap, io::{Cursor, Read}, path::Path};
 use uuid::Uuid;
 
-const MAX_FILE: usize = 20 * 1024 * 1024;
+pub const MAX_FILE: usize = 20 * 1024 * 1024;
 const MAX_TEXT: usize = 200_000;
 
 pub fn parse(name: String, mime: String, data: String) -> Result<Attachment> {
+  if data.len()>MAX_FILE.div_ceil(3)*4{return Err(anyhow!("单个附件不得超过 20 MB"));}
   let bytes=STANDARD.decode(&data)?;
   if bytes.is_empty() || bytes.len()>MAX_FILE { return Err(anyhow!("文件须介于 1 字节和 20 MB 之间")); }
   let extension=Path::new(&name).extension().and_then(|x|x.to_str()).unwrap_or("").to_lowercase();
@@ -105,17 +106,40 @@ fn docx_preview(bytes:&[u8])->Result<String>{
 }
 fn escape_html(value:&str)->String{value.replace('&',"&amp;").replace('<',"&lt;").replace('>',"&gt;").replace('"',"&quot;")}
 
+fn citation_text(message:&Message)->String {
+  let sources=message.sources.as_deref().unwrap_or(&[]);let mut content=message.content.clone();
+  for (index,source) in sources.iter().enumerate(){
+    if source.citation.starts_with("cc-") && !sources.iter().any(|other|other.citation==source.citation && other.url!=source.url){content=content.replace(&format!("[{}]",source.citation),&format!("[{}]",index+1));}
+  }
+  if !sources.is_empty(){content.push_str("\n\n来源：\n");for (index,source) in sources.iter().enumerate(){
+    if let Ok(url)=reqwest::Url::parse(&source.url){if matches!(url.scheme(),"http"|"https") && url.username().is_empty() && url.password().is_none(){content.push_str(&format!("\n[{}] {} — {}\n",index+1,source.title,url));}}
+  }}
+  content
+}
+
+#[cfg(test)]
+mod citation_export_tests {
+  #[test]
+  fn exports_native_citation_numbers_with_actual_sources_without_altering_stored_content(){
+    let source=serde_json::from_value(serde_json::json!({"citation":"cc-export-id","url":"https://source.test/article","title":"原始来源"})).unwrap();
+    let message=crate::database::Message{content:"检测结论。[cc-export-id]".into(),sources:Some(vec![source]),..Default::default()};
+    let exported=super::citation_text(&message);assert!(exported.starts_with("检测结论。[1]"));assert!(exported.contains("https://source.test/article"));assert_eq!(message.content,"检测结论。[cc-export-id]");
+  }
+}
+
 pub fn markdown(conversation:&Conversation,messages:&[Message])->String {
   let mut result=format!("# {}\n\n",conversation.title);
   if !conversation.system_prompt.trim().is_empty(){result.push_str(&format!("> System Prompt: {}\n\n",conversation.system_prompt.replace('\n',"\n> ")));}
-  for m in messages {result.push_str(&format!("## {} · {}\n\n",if m.role=="user"{"用户"}else{"助手"},m.created_at)); result.push_str(&m.content);result.push_str("\n\n");for a in &m.attachments {result.push_str(&format!("- 附件：{} ({})\n",a.name,a.mime));if let Some(t)=&a.text{result.push_str(&format!("\n<details><summary>提取的文本</summary>\n\n```text\n{}\n```\n</details>\n\n",t));}}if !m.attachments.is_empty(){result.push('\n');}}
+  for m in messages {result.push_str(&format!("## {} · {}\n\n",if m.role=="user"{"用户"}else{"助手"},m.created_at)); result.push_str(&citation_text(m));result.push_str("\n\n");for a in &m.attachments {result.push_str(&format!("- 附件：{} ({})\n",a.name,a.mime));if let Some(t)=&a.text{result.push_str(&format!("\n<details><summary>提取的文本</summary>\n\n```text\n{}\n```\n</details>\n\n",t));}}if !m.attachments.is_empty(){result.push('\n');}}
   result
 }
 
 pub fn export_pdf(conversation:&Conversation,messages:&[Message],path:&Path)->Result<()> {
   use printpdf::*;
   let (doc,page,layer)=PdfDocument::new(&conversation.title,Mm(210.0),Mm(297.0),"Content");
-  let font_path=["C:\\Windows\\Fonts\\simhei.ttf","C:\\Windows\\Fonts\\msyh.ttf","C:\\Windows\\Fonts\\msyh.ttc"].into_iter().find(|p|Path::new(p).exists()).ok_or_else(||anyhow!("未找到可用于中文 PDF 的系统字体"))?;
+  let windows=std::env::var_os("SystemRoot").ok_or_else(||anyhow!("无法确定 Windows 字体目录"))?;
+  let fonts=Path::new(&windows).join("Fonts");
+  let font_path=["simhei.ttf","msyh.ttf","msyh.ttc"].into_iter().map(|name|fonts.join(name)).find(|p|p.exists()).ok_or_else(||anyhow!("未找到可用于中文 PDF 的系统字体"))?;
   let font=doc.add_external_font(std::fs::File::open(font_path)?)?;
   let mut page=page;let mut layer=layer;let mut y=280.0;let mut code=false;
   for line in markdown(conversation,messages).lines() {
@@ -171,4 +195,25 @@ fn wrap(text:&str,n:usize)->Vec<String>{if text.is_empty(){return vec![];}let mu
     let path=std::env::temp_dir().join(format!("claude-chat-{}.pdf",Uuid::new_v4()));
     export_pdf(&c,&[m],&path).unwrap(); assert!(std::fs::metadata(&path).unwrap().len()>1000); std::fs::remove_file(path).unwrap();
   }
+}
+/// A copy must never silently replace an existing file, including the original.
+pub fn save_code_copy(path: &std::path::Path, content: &str) -> anyhow::Result<()> {
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(path)
+        .map_err(|error| if error.kind() == std::io::ErrorKind::AlreadyExists {
+            anyhow::anyhow!("目标文件已存在，请选择新文件名；覆盖原文件需使用单独的覆盖操作")
+        } else { error.into() })?;
+    file.write_all(content.as_bytes())?;
+    Ok(())
+}
+#[cfg(test)]
+mod copy_tests {
+    #[test]
+    fn saving_a_copy_never_overwrites_a_file() {
+        let path=std::env::temp_dir().join(format!("claudechat-copy-{}.rs",uuid::Uuid::new_v4()));
+        super::save_code_copy(&path,"original").unwrap();
+        assert!(super::save_code_copy(&path,"replacement").is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(),"original");
+        std::fs::remove_file(path).unwrap();
+    }
 }

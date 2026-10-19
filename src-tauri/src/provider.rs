@@ -85,19 +85,27 @@ impl ProviderAdapter {
                 .as_object()
                 .ok_or_else(|| anyhow!("附加请求参数必须是 JSON 对象"))?;
             for (key, value) in options {
+                if key=="client_max_output_tokens" {continue}
                 if matches!(
                     key.as_str(),
                     "model" | "messages" | "system" | "tools" | "stream"
                 ) {
                     return Err(anyhow!("附加参数不能覆盖 {}", key));
                 }
+                let request_key=if self==Self::OpenAI && key=="max_tokens" {
+                    if options.contains_key("max_completion_tokens"){continue}
+                    "max_completion_tokens"
+                }else{key.as_str()};
                 if value.is_null() {
-                    body.as_object_mut().unwrap().remove(key);
+                    body.as_object_mut().unwrap().remove(request_key);
                 } else {
-                    body[key] = value.clone();
+                    body[request_key] = value.clone();
                 }
             }
         }
+        if body.get("max_completion_tokens").is_some(){body.as_object_mut().unwrap().remove("max_tokens");}
+        crate::recovery::output_budget(body,options,self==Self::Anthropic)?;
+        if self==Self::OpenAI {if let Some(max)=body.as_object_mut().unwrap().remove("max_tokens"){body["max_completion_tokens"]=max;}}
         Ok(())
     }
     pub fn configure_search(self, body: &mut Value) -> Result<()> {
@@ -147,12 +155,12 @@ pub async fn send_cancellable(
     cancelled: &std::sync::atomic::AtomicBool,
 ) -> Result<reqwest::Response> {
     if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
-        return Err(anyhow!("已停止生成"));
+        return Err(crate::recovery::fail(crate::recovery::Kind::Cancelled,"已停止生成"));
     }
     let pending = request.send();
     tokio::pin!(pending);
     loop {
-        tokio::select! {response=&mut pending=>return Ok(response?),_=tokio::time::sleep(std::time::Duration::from_millis(100))=>{if cancelled.load(std::sync::atomic::Ordering::Relaxed){return Err(anyhow!("已停止生成"));}}}
+        tokio::select! {response=&mut pending=>return Ok(response?),_=tokio::time::sleep(std::time::Duration::from_millis(100))=>{if cancelled.load(std::sync::atomic::Ordering::Relaxed){return Err(crate::recovery::fail(crate::recovery::Kind::Cancelled,"已停止生成"));}}}
     }
 }
 
@@ -173,9 +181,29 @@ pub async fn stream(
     cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
     on_delta: impl FnMut(String) -> Result<()>,
 ) -> Result<crate::openai::Response> {
+    stream_with_progress(settings,key,history,system,search,cancelled,on_delta, |_, _| {}).await
+}
+
+pub async fn stream_with_progress(
+    settings: &crate::commands::Settings,
+    key: String,
+    history: Vec<crate::database::Message>,
+    system: String,
+    search: bool,
+    cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    on_delta: impl FnMut(String) -> Result<()>,
+    on_progress: impl FnMut(&str, String),
+) -> Result<crate::openai::Response> {
+    crate::generation::stream(settings,key,history,system,search,cancelled,on_delta,on_progress).await
+}
+
+pub async fn stream_once_with_progress(
+    settings:&crate::commands::Settings,key:String,history:Vec<crate::database::Message>,system:String,search:bool,
+    cancelled:std::sync::Arc<std::sync::atomic::AtomicBool>,on_delta:impl FnMut(String)->Result<()>,on_progress:impl FnMut(&str,String),
+) -> Result<crate::openai::Response> {
     match ProviderAdapter::new(&settings.provider)? {
         ProviderAdapter::Anthropic => {
-            crate::claude::stream(
+            crate::claude::stream_with_progress(
                 settings.base_url.clone(),
                 key,
                 settings.model.clone(),
@@ -186,11 +214,12 @@ pub async fn stream(
                 search,
                 cancelled,
                 on_delta,
+                on_progress,
             )
             .await
         }
         _ => {
-            crate::openai::stream(
+            crate::openai::stream_with_progress(
                 settings.provider.clone(),
                 settings.base_url.clone(),
                 key,
@@ -202,6 +231,7 @@ pub async fn stream(
                 search,
                 cancelled,
                 on_delta,
+                on_progress,
             )
             .await
         }

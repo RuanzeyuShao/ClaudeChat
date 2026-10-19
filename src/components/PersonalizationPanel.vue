@@ -1,0 +1,27 @@
+<script setup lang="ts">
+import { computed,ref } from 'vue'
+import { Check,Sun,Moon,Monitor,RotateCcw } from '@lucide/vue'
+import { useChatStore } from '../stores/chat'
+import { useUiStore } from '../stores/ui'
+import { getThemePreset,themePresets,type ColorThemeId } from '../themes/themePresets'
+import type { ThemeMode } from '../types'
+const chat=useChatStore(),ui=useUiStore(),error=ref(''),revision=ref(0)
+const selected=computed(()=>getThemePreset(chat.settings.colorTheme))
+const modes=[{id:'light',name:'浅色',icon:Sun},{id:'dark',name:'深色',icon:Moon},{id:'system',name:'跟随系统',icon:Monitor}] as const
+async function change(theme:ThemeMode,colorTheme:ColorThemeId){
+ const current=++revision.value;error.value=''
+ try{await chat.setAppearance(theme,colorTheme)}catch(e){if(current===revision.value)error.value='外观未能保存，已恢复上次保存的设置。';ui.failure(e)}
+}
+function paletteKey(event:KeyboardEvent,index:number){let next=index;if(['ArrowRight','ArrowDown'].includes(event.key))next=(index+1)%themePresets.length;else if(['ArrowLeft','ArrowUp'].includes(event.key))next=(index+themePresets.length-1)%themePresets.length;else if(event.key==='Home')next=0;else if(event.key==='End')next=themePresets.length-1;else return;event.preventDefault();void change(chat.settings.theme,themePresets[next].id);(event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus()}
+</script>
+<template>
+ <section class="personalization-panel api-settings-secondary" aria-label="个性化设置">
+  <div class="personalization-heading"><div><h3>个性化</h3><p>为窗口、对话与控件选择一套配色。</p></div><button class="secondary appearance-reset" type="button" title="恢复暖白背景、经典翡翠和浅色外观" @click="change('light','emerald')"><RotateCcw :size="14"/>恢复默认</button></div>
+  <section class="appearance-section"><h4>外观模式</h4><div class="appearance-modes" role="radiogroup" aria-label="外观模式"><button v-for="mode in modes" :key="mode.id" type="button" role="radio" :aria-checked="chat.settings.theme===mode.id" :class="{selected:chat.settings.theme===mode.id}" @click="change(mode.id,selected.id)"><component :is="mode.icon" :size="17"/>{{ mode.name }}<Check v-if="chat.settings.theme===mode.id" :size="13" class="appearance-mode-check"/></button></div><p class="hint">跟随系统会实时响应 Windows 的外观变化。</p></section>
+  <section class="appearance-section"><div class="palette-heading"><h4>颜色主题</h4><span>{{ selected.name }}</span></div><div class="theme-swatches" role="radiogroup" aria-label="颜色主题"><button v-for="(preset,index) in themePresets" :key="preset.id" type="button" role="radio" class="theme-swatch" :class="{selected:selected.id===preset.id}" :aria-label="preset.name" :title="preset.name" :aria-checked="selected.id===preset.id" :tabindex="selected.id===preset.id?0:-1" :style="{'--swatch-accent':preset.accent,'--swatch-soft':preset.soft}" @click="change(chat.settings.theme,preset.id)" @keydown="paletteKey($event,index)"><span class="swatch-disc"/><span v-if="selected.id===preset.id" class="swatch-check"><Check :size="11" :stroke-width="3"/></span></button></div><p class="hint">即时应用并自动保存；外观模式与颜色主题可独立选择。</p></section>
+  <p class="appearance-save-state" role="status" aria-live="polite">{{ chat.appearanceBusy?'正在保存外观…':error || '外观已自动保存' }}</p>
+ </section>
+</template>
+<style scoped>
+.personalization-panel{max-width:none}.personalization-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:24px}.personalization-heading h3{margin-bottom:6px}.personalization-heading p{margin:0;color:var(--muted);font-size:calc(12px * var(--font-scale,1))}.appearance-reset{flex:none;white-space:nowrap}.appearance-section{max-width:640px;padding:18px 0;border-top:1px solid var(--line)}.appearance-section h4{margin:0 0 14px;font-size:calc(13px * var(--font-scale,1));font-weight:600}.appearance-modes{display:flex;gap:8px;flex-wrap:wrap}.appearance-modes button{display:flex;align-items:center;justify-content:center;gap:7px;min-width:110px;min-height:42px;padding:9px 13px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--text)}.appearance-modes button:hover{background:var(--soft)}.appearance-modes button.selected{border-color:var(--accent-ink);background:var(--accent-soft);color:var(--accent-ink)}.appearance-mode-check{flex:none}.palette-heading{display:flex;align-items:baseline;gap:12px}.palette-heading span{color:var(--accent-ink);font-size:calc(12px * var(--font-scale,1))}.theme-swatches{display:flex;flex-wrap:wrap;gap:14px;padding:5px 3px 12px}.theme-swatch{position:relative;flex:none;width:40px;height:40px;padding:3px;border:1px solid transparent;border-radius:50%;background:transparent}.swatch-disc{display:block;width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--swatch-soft) 0 50%,var(--swatch-accent) 50% 100%);box-shadow:inset 0 0 0 1px #00000012}.theme-swatch:hover{border-color:var(--line-strong)}.theme-swatch.selected{border:2px solid var(--accent-ink);padding:2px}.swatch-check{position:absolute;right:-3px;bottom:-2px;display:grid;place-items:center;width:17px;height:17px;border:2px solid var(--panel);border-radius:50%;background:var(--accent);color:var(--on-accent)}.appearance-save-state{color:var(--muted);font-size:calc(11px * var(--font-scale,1));margin:12px 0}.appearance-section .hint{margin-bottom:0}@media(max-width:600px){.theme-swatches{gap:10px}.personalization-heading{flex-wrap:wrap}.appearance-modes button{min-width:100px}}
+</style>

@@ -12,6 +12,7 @@ export type ChatProviderId = typeof chatProviders[number]['id']
 export function providerEntry(kind: ProviderKind): ChatProviderId {
   return kind === 'openai-compatible' ? 'gpt' : chatProviders.find(p => p.kind === kind)?.id || 'claude'
 }
+export function providerLabel(kind:ProviderKind):string {return (chatProviders.find(p=>p.id===providerEntry(kind))?.name || kind)+(kind==='openai-compatible'?'（兼容）':'')}
 export type ProviderPreference = Pick<Settings, 'profileId' | 'model' | 'thinking' | 'searchMode' | 'searchProvider' | 'searchBaseUrl' | 'searchModel'>
 export function preference(settings: Settings): ProviderPreference {
   return {profileId: settings.profileId, model: settings.model, thinking: settings.thinking, searchMode: settings.searchMode, searchProvider: settings.searchProvider, searchBaseUrl: settings.searchBaseUrl, searchModel: settings.searchModel || ''}

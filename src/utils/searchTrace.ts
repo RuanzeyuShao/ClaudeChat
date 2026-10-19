@@ -1,5 +1,9 @@
 import type { Message } from '../types'
 
+export function searchStatusLabel(status:string):string {
+  return ({allowed:'已允许搜索',not_used:'未调用搜索',empty:'检索完成，无结果',failed:'检索失败',completed:'检索完成',cancelled:'已停止',searching:'正在检索',generating:'生成回答',off:'不联网'} as Record<string,string>)[status] || status
+}
+
 export function searchQueries(message: Message): string[] {
   const queries = new Set<string>()
   if (message.searchTrace?.query) queries.add(message.searchTrace.query)
