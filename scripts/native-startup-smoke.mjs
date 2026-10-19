@@ -39,8 +39,17 @@ async function stop(){
 }
 try{
  let page=await launch()
+ const historySearch=page.getByRole('button',{name:'搜索历史对话',exact:true})
+ await historySearch.click();await page.getByRole('button',{name:'关闭搜索',exact:true}).click()
+ assert.equal(await page.locator('.history-search-wrap').count(),0)
+ await page.keyboard.press('Control+k');await page.getByRole('searchbox',{name:'搜索历史对话'}).fill('原生关闭搜索验证：无匹配')
+ await page.getByText('没有匹配的对话',{exact:true}).waitFor()
+ await page.getByRole('button',{name:'关闭搜索',exact:true}).click()
+ assert.equal(await page.locator('.history-search-wrap').count(),0);assert.equal(await page.locator('.conversation-link').count(),1)
  assert.equal(await page.evaluate(()=>window.__TAURI_INTERNALS__.invoke('get_extension',{key:'v5:fontSize'})),null)
  await page.getByRole('button',{name:'设置',exact:true}).click()
+ const closeAlignment=await page.getByRole('button',{name:'关闭设置',exact:true}).evaluate(el=>{const b=el.getBoundingClientRect(),icon=el.querySelector('svg').getBoundingClientRect();return {x:(icon.left+icon.right-b.left-b.right)/2,y:(icon.top+icon.bottom-b.top-b.bottom)/2}})
+ assert.ok(Math.abs(closeAlignment.x)<.5 && Math.abs(closeAlignment.y)<.5,'settings close icon is not centered')
  await page.getByRole('button',{name:'通用偏好',exact:true}).click()
  await page.getByRole('spinbutton',{name:'字体大小',exact:true}).fill('20')
  await page.getByRole('button',{name:'保存偏好',exact:true}).click()

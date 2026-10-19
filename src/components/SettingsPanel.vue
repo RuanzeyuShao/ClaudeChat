@@ -53,7 +53,7 @@ onMounted(async()=>{await nextTick();root.value?.focus()})
 </script>
 <template>
  <div class="api-settings-backdrop" @click.self="close"><section ref="root" class="api-settings" role="dialog" aria-modal="true" aria-labelledby="api-settings-title" tabindex="-1" @keydown="keyboard">
-  <header class="api-settings-header"><div><h2 id="api-settings-title">设置</h2><p>管理你的聊天连接与偏好</p></div><button aria-label="关闭设置" :disabled="saving || manager?.busy" @click="close"><X :size="18"/></button></header>
+  <header class="api-settings-header"><div><h2 id="api-settings-title">设置</h2><p>管理你的聊天连接与偏好</p></div><button type="button" class="icon-button" aria-label="关闭设置" :disabled="saving || manager?.busy" @click="close"><X :size="18"/></button></header>
   <nav class="api-settings-tabs" aria-label="设置分类"><button :class="{active:tab==='api'}" :aria-current="tab==='api'?'page':undefined" @click="switchTab('api')">API 配置 <span>{{ chat.profiles.length }}</span></button><button :class="{active:tab==='presets'}" @click="switchTab('presets')">Prompt 预设</button><button :class="{active:tab==='preferences'}" @click="switchTab('preferences')">通用偏好</button><button :class="{active:tab==='personalization'}" @click="switchTab('personalization')">个性化</button></nav>
   <PersonalizationPanel v-if="tab==='personalization'"/>
   <ApiProfileManager v-show="tab==='api'" ref="manager" :initial-provider="initialProvider" :initial-profile-id="initialProfileId"/>
