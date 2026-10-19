@@ -3,10 +3,12 @@
   "version": "0.1.6",
   "platform": "windows-x64",
   "installer": "ClaudeChat_0.1.6_x64-setup.exe",
-  "bytes": 7030389,
-  "sha256": "84a4fd74879ef911f768ffd7ac31ba6872aa07670d15b8e9a846e912657f2ad1",
-  "builtAt": "2026-10-18T04:38:46.866Z",
+  "bytes": 7030904,
+  "sha256": "2c98ac2ca7bbc4ff2b2c4bf0369dd07d129cc40cb5d147d895a8d342ea03c00d",
+  "builtAt": "2026-10-19T05:39:20.925Z",
   "branch": "v0.1.6",
-  "sourceCommit": "d9299fa59427d288e004d493335c529015dc5f69",
-  "githubReleasePublished": false
+  "sourceCommit": "82433b383c9b7c4b9b673513e6142f105f3d97b6",
+  "githubReleasePublished": true,
+  "releaseUrl": "https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.6",
+  "revision": "2026-10-19-ui-close-fixes"
 }
