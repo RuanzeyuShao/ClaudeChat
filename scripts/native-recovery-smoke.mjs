@@ -27,6 +27,7 @@ const partial=res=>{res.writeHead(200,{'Content-Type':'text/event-stream'});res.
 const finish=text=>res=>{res.writeHead(200,{'Content-Type':'text/event-stream'});res.end(answer(text))}
 try{
  await launch();const conversations=await invoke('get_conversations'),id=conversations[0].id,settings={...await invoke('get_settings'),autoContinuations:1,autoRecoveries:3,apiKey:'mock-local-only',profileId:'',provider:'openai',baseUrl:base,model:'mock-long',thinking:'off',webSearch:false,searchMode:'off',searchProvider:'claude',requestOptions:null}
+ await invoke('rename_conversation',{conversationId:id,title:'原生恢复验证'})
  const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII='
  const attachment=await invoke('parse_attachment',{conversationId:id,name:'draft.png',mime:'image/png',data:png});assert.equal(attachment.data,null)
  assert.equal(await invoke('get_attachment_data',{attachmentId:attachment.id}),png)

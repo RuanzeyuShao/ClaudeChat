@@ -64,6 +64,7 @@ export const useChatStore = defineStore('chat', {
       }))
       listeners.push(await listen<{conversationId:string;requestId:string;generation:GenerationInfo}>('chat-generation',({payload})=>{if(this.activeId!==payload.conversationId || this.activeRequestId!==payload.requestId)return;this.requestCompletion=payload.generation;const message=this.active?.messages.at(-1);if(message)message.generation=payload.generation}))
       listeners.push(await listen<{ usage: Usage }>('chat-usage', ({ payload }) => { if (!this.usage.some(item => item.id === payload.usage.id)) this.usage.unshift(payload.usage) }))
+      listeners.push(await listen<{conversationId:string}>('conversation-title-failed',({payload})=>{const item=this.conversations.find(c=>c.id===payload.conversationId);if(item?.title==='新对话')useUiStore().notify('AI 标题未生成，可手动重命名会话','info')}))
       listeners.push(await listen<{ conversationId: string; title: string }>('conversation-title', ({ payload }) => { const item = this.conversations.find(value => value.id === payload.conversationId); if (item) item.title = payload.title }))
       listeners.push(await listen<{conversationId:string;requestId:string}>('chat-request-finished', ({ payload }) => { if(payload.requestId!==this.activeRequestId)return;this.flushDeltas(); const msg = this.conversations.find(item => item.id === payload.conversationId)?.messages.at(-1); if (msg) msg.pending = false }))
       // The invoke rejection is the single error owner, avoiding duplicate Toasts.

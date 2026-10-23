@@ -112,6 +112,7 @@ pub struct Database {
 }
 
 fn migrate_v6(conn:&Connection)->Result<()> {
+    conn.execute_batch("CREATE TABLE IF NOT EXISTS conversation_titles(conversation_id TEXT PRIMARY KEY,ticket TEXT NOT NULL,status TEXT NOT NULL);")?;
     conn.execute_batch("CREATE TABLE IF NOT EXISTS origins(kind TEXT NOT NULL,id TEXT NOT NULL,value TEXT NOT NULL,PRIMARY KEY(kind,id)); CREATE TABLE IF NOT EXISTS saved_drafts(conversation_id TEXT PRIMARY KEY,value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS draft_files(id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL,value TEXT NOT NULL); CREATE INDEX IF NOT EXISTS idx_usage_time ON usage_records(created_at DESC); CREATE INDEX IF NOT EXISTS idx_draft_owner ON draft_files(conversation_id);")?;
     for(key,kind)in [("v4:requestOrigins","request"),("v4:usageOrigins","usage")] {
         let raw:Option<String>=conn.query_row("SELECT value FROM settings WHERE key=?",[key],|r|r.get(0)).optional()?;
@@ -136,6 +137,19 @@ fn migrate_v6(conn:&Connection)->Result<()> {
 }
 
 impl Database {
+    pub fn title_pending(&self,id:&str,ticket:&str)->Result<bool>{Ok(self.conn.query_row("SELECT EXISTS(SELECT 1 FROM conversation_titles t JOIN conversations c ON c.id=t.conversation_id WHERE t.conversation_id=? AND t.ticket=? AND t.status='pending' AND c.title='新对话')",params![id,ticket],|r|r.get(0))?)}
+    pub fn finish_title(&self,id:&str,ticket:&str,title:Option<&str>,usage:Option<&Usage>,origin:&serde_json::Value,usage_origin:&serde_json::Value)->Result<Option<bool>>{
+        let tx=self.conn.unchecked_transaction()?;
+        let exists:bool=self.conn.query_row("SELECT EXISTS(SELECT 1 FROM conversations WHERE id=?)",[id],|r|r.get(0))?;
+        if !exists{return Ok(None)}
+        if let Some(usage)=usage{self.add_usage(usage)?;self.record_request_origin(&usage.id,origin)?;self.set_origin("usage",&usage.id,usage_origin)?;}
+        let pending:bool=self.conn.query_row("SELECT EXISTS(SELECT 1 FROM conversation_titles WHERE conversation_id=? AND ticket=? AND status='pending')",params![id,ticket],|r|r.get(0))?;
+        let changed=if pending {
+            let count=if let Some(title)=title{self.conn.execute("UPDATE conversations SET title=? WHERE id=? AND title='新对话'",params![title,id])?}else{0};
+            self.conn.execute("UPDATE conversation_titles SET status=? WHERE conversation_id=? AND ticket=?",params![if title.is_some(){"complete"}else{"failed"},id,ticket])?;count>0
+        }else{false};
+        tx.commit()?;Ok(Some(changed))
+    }
     pub fn cache_attachment(&self,conversation_id:&str,attachment:&Attachment)->Result<()> {
         let exists:bool=self.conn.query_row("SELECT EXISTS(SELECT 1 FROM conversations WHERE id=?)",[conversation_id],|r|r.get(0))?;
         anyhow::ensure!(exists,"会话不存在");
@@ -187,7 +201,7 @@ impl Database {
     }
     pub fn clear_all(&self)->Result<()> {
         let tx=self.conn.unchecked_transaction()?;
-        self.conn.execute_batch("DELETE FROM attachments;DELETE FROM message_nodes;DELETE FROM messages;DELETE FROM conversation_tree;DELETE FROM conversations;DELETE FROM usage_records;DELETE FROM origins;DELETE FROM saved_drafts;DELETE FROM draft_files;DELETE FROM model_prices;DELETE FROM api_profiles;DELETE FROM settings;")?;
+        self.conn.execute_batch("DELETE FROM attachments;DELETE FROM message_nodes;DELETE FROM messages;DELETE FROM conversation_tree;DELETE FROM conversation_titles;DELETE FROM conversations;DELETE FROM usage_records;DELETE FROM origins;DELETE FROM saved_drafts;DELETE FROM draft_files;DELETE FROM model_prices;DELETE FROM api_profiles;DELETE FROM settings;")?;
         tx.commit()?;Ok(())
     }
     pub fn open(path: &std::path::Path, legacy: &std::path::Path) -> Result<Self> {
@@ -396,21 +410,12 @@ impl Database {
                 ],
             )?;
         }
-        let generated = if first && matches!(title.as_deref(), Some("准备开始") | Some("新对话"))
-        {
-            let value = generate_title(content, attachments);
-            self.conn.execute(
-                "UPDATE conversations SET title=?,updated_at=? WHERE id=?",
-                params![value, now, conversation_id],
-            )?;
-            Some(value)
-        } else {
-            self.conn.execute(
-                "UPDATE conversations SET updated_at=? WHERE id=?",
-                params![now, conversation_id],
-            )?;
-            None
-        };
+        let generated = if first && matches!(title.as_deref(),Some("准备开始")|Some("新对话")){
+            let ticket=Uuid::new_v4().to_string();
+            let claimed=self.conn.execute("INSERT OR IGNORE INTO conversation_titles(conversation_id,ticket,status) VALUES(?,?,'pending')",params![conversation_id,ticket])?;
+            if claimed>0{self.conn.execute("UPDATE conversations SET title='新对话' WHERE id=?",[conversation_id])?;Some(ticket)}else{None}
+        }else{None};
+        self.conn.execute("UPDATE conversations SET updated_at=? WHERE id=?",params![now,conversation_id])?;
         tx.commit()?;
         Ok(generated)
     }
@@ -528,11 +533,15 @@ impl Database {
         Ok(rows.collect::<std::result::Result<Vec<_>,_>>()?)
     }
     pub fn rename(&self, id: &str, title: &str) -> Result<()> {
+        let tx=self.conn.unchecked_transaction()?;
+        let exists:bool=self.conn.query_row("SELECT EXISTS(SELECT 1 FROM conversations WHERE id=?)",[id],|r|r.get(0))?;
+        anyhow::ensure!(exists,"会话不存在");
+        self.conn.execute("INSERT INTO conversation_titles(conversation_id,ticket,status) VALUES(?,'','manual') ON CONFLICT(conversation_id) DO UPDATE SET status='manual'",[id])?;
         self.conn.execute(
             "UPDATE conversations SET title=?,updated_at=? WHERE id=?",
             params![title, Utc::now().to_rfc3339(), id],
         )?;
-        Ok(())
+        tx.commit()?;Ok(())
     }
     pub fn set_model(&self, id: &str, model: &str) -> Result<()> {
         self.conn.execute(
@@ -543,6 +552,7 @@ impl Database {
     }
     pub fn delete(&self, id: &str) -> Result<()> {
         let tx=self.conn.unchecked_transaction()?;
+        self.conn.execute("DELETE FROM conversation_titles WHERE conversation_id=?",[id])?;
         self.conn.execute("DELETE FROM origins WHERE id IN (SELECT usage_id FROM message_nodes WHERE message_id IN (SELECT id FROM messages WHERE conversation_id=?1)) OR id IN (SELECT id FROM usage_records WHERE conversation_id=?1)",[id])?;
         self.conn.execute("DELETE FROM settings WHERE key IN (?1,?2)",params![format!("v4:conversationConnection:{id}"),format!("v6:context:{id}")])?;
         self.conn.execute("DELETE FROM saved_drafts WHERE conversation_id=?",[id])?;
@@ -800,7 +810,7 @@ fn migrate_usage(conn: &Connection) -> Result<()> {
 fn migrate_v3(conn: &Connection) -> Result<()> {
     let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
     if version >= 3 {
-        let tx=conn.unchecked_transaction()?;migrate_v6(&tx)?;tx.execute_batch("PRAGMA user_version=6;")?;tx.commit()?;return Ok(());
+        let tx=conn.unchecked_transaction()?;migrate_v6(&tx)?;tx.execute_batch("PRAGMA user_version=7;")?;tx.commit()?;return Ok(());
     }
     let tx = conn.unchecked_transaction()?;
     tx.execute_batch("CREATE TABLE IF NOT EXISTS message_nodes(message_id TEXT PRIMARY KEY,parent_id TEXT,refs TEXT NOT NULL DEFAULT '[]',search_trace TEXT,usage_id TEXT,reasoning_content TEXT NOT NULL DEFAULT ''); CREATE INDEX IF NOT EXISTS idx_node_parent ON message_nodes(parent_id); CREATE TABLE IF NOT EXISTS conversation_tree(conversation_id TEXT PRIMARY KEY,active_leaf TEXT);")?;
@@ -850,81 +860,14 @@ fn migrate_v3(conn: &Connection) -> Result<()> {
         }
     }
     migrate_v6(&tx)?;
-    tx.execute_batch("PRAGMA user_version=6;")?;
+    tx.execute_batch("PRAGMA user_version=7;")?;
     tx.commit()?;
     Ok(())
-}
-
-fn generate_title(content: &str, attachments: &[Attachment]) -> String {
-    let first_line = content
-        .lines()
-        .find(|line| !line.trim().is_empty())
-        .unwrap_or("")
-        .trim();
-    let cleaned = first_line.trim_start_matches(|c: char| c.is_whitespace() || "#>*-•".contains(c));
-    let cleaned = ["请帮我", "帮我", "请你", "请", "帮忙", "能否", "可以帮我"]
-        .iter()
-        .find_map(|prefix| cleaned.strip_prefix(prefix))
-        .unwrap_or(cleaned)
-        .trim();
-    let clause = cleaned
-        .split(['。', '！', '？', '!', '?', '\n'])
-        .next()
-        .unwrap_or("")
-        .trim_matches(|c: char| c.is_whitespace() || "，,：:；;。.".contains(c));
-    let title = if clause.is_empty()
-        || matches!(
-            clause,
-            "总结这个文件" | "分析这个文件" | "阅读这个文件" | "总结文档" | "分析文档"
-        ) {
-        attachments
-            .first()
-            .map(|a| {
-                format!(
-                    "阅读 {}",
-                    std::path::Path::new(&a.name)
-                        .file_stem()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or(&a.name)
-                )
-            })
-            .unwrap_or_else(|| "对话".into())
-    } else {
-        clause.into()
-    };
-    let short: String = title.chars().take(22).collect();
-    if title.chars().count() > 22 {
-        format!("{}…", short)
-    } else {
-        short
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn title_uses_first_request() {
-        assert_eq!(
-            generate_title("请帮我总结这篇论文。后续问题", &[]),
-            "总结这篇论文"
-        );
-        assert_eq!(
-            generate_title(
-                "",
-                &[Attachment {
-                    id: "1".into(),
-                    name: "report.md".into(),
-                    mime: "text/markdown".into(),
-                    kind: "document".into(),
-                    size: 1,
-                    text: None,
-                    data: None
-                }]
-            ),
-            "阅读 report"
-        );
-    }
     #[test]
     fn usage_migration_preserves_records() {
         let conn = Connection::open_in_memory().unwrap();
@@ -950,3 +893,7 @@ mod v3_tests;
 #[cfg(test)]
 #[path = "database_v6_tests.rs"]
 mod v6_tests;
+
+#[cfg(test)]
+#[path = "database_title_tests.rs"]
+mod title_tests;

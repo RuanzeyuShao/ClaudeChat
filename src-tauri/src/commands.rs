@@ -615,10 +615,10 @@ pub async fn send_message(
         if !history.iter().any(|m|m.id==seed.id){history.push(seed.clone())}
         history.push(Message{role:"user".into(),content:if check_completion.unwrap_or(false){crate::generation::CHECK_PROMPT}else{crate::generation::CONTINUE_PROMPT}.into(),..Default::default()});
     }
-    if let Some(title) = title {
+    if title.is_some() {
         let _ = window.emit(
             "conversation-title",
-            serde_json::json!({"conversationId":conversation_id,"title":title}),
+            serde_json::json!({"conversationId":conversation_id,"title":"新对话"}),
         );
     }
     for message in &mut history {
@@ -660,6 +660,7 @@ pub async fn send_message(
             profile.map(|p| p.name).unwrap_or_default(),
         )
     };
+    let _title_after_reply=crate::titles::AfterReply(title.map(|ticket|crate::titles::Task{window:window.clone(),conversation_id:conversation_id.clone(),ticket,settings:settings.clone(),key:key.clone(),input:crate::titles::input(&content,&attachments),prices,profile_name:profile_name.clone()}));
     let mut request_identity=crate::connection::identity(&settings,&profile_name);
     request_identity["requestId"]=serde_json::json!(request_id);
     let _=window.emit("chat-request",serde_json::json!({"conversationId":conversation_id,"requestId":request_id,"request":request_identity}));

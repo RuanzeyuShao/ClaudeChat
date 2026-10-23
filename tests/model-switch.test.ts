@@ -103,3 +103,8 @@ it('rejects late stream, sources, status and finish events from a previous reque
  expect(current.content).toBe('');expect(current.sources).toBeUndefined();expect(current.reasoningContent).toBeUndefined();expect(current.pending).toBe(true);expect(chat.requestSettings?.model).toBe('second-model')
  runtime.handlers['chat-delta']({payload:{conversationId:'c',requestId:id,delta:'current output'}});chat.flushDeltas();expect(current.content).toBe('current output');runtime.finish!();await flushPromises()
 })
+
+it('updates titles for the originating conversation and preserves manual names on failure',()=>{
+ const chat=useChatStore();runtime.handlers['conversation-title']({payload:{conversationId:'c',title:'AI 总结出的标题'}});expect(chat.conversations.find(c=>c.id==='c')?.title).toBe('AI 总结出的标题');expect(chat.conversations.find(c=>c.id==='recent')?.title).toBe('other')
+ runtime.handlers['conversation-title-failed']({payload:{conversationId:'c'}});expect(chat.conversations.find(c=>c.id==='c')?.title).toBe('AI 总结出的标题')
+})
