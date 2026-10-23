@@ -1,1 +1,1 @@
-2c98ac2ca7bbc4ff2b2c4bf0369dd07d129cc40cb5d147d895a8d342ea03c00d  ClaudeChat_0.1.6_x64-setup.exe
+7c2aaafd095373f24048b8e70d13d28092fc2d72d404c0768ece2d904b998b62  ClaudeChat_0.1.6_x64-setup.exe
