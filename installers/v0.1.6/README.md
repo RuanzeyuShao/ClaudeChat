@@ -1,10 +1,12 @@
 # ClaudeChat v0.1.6 · Windows x64
 
-[下载安装包](https://github.com/RuanzeyuShao/ClaudeChat/raw/refs/heads/v0.1.6/installers/v0.1.6/ClaudeChat_0.1.6_x64-setup.exe)
+[下载安装包](https://github.com/RuanzeyuShao/ClaudeChat/releases/download/v0.1.6/ClaudeChat_0.1.6_x64-setup.exe)
 
 运行 `ClaudeChat_0.1.6_x64-setup.exe`，更新前退出旧版程序。安装使用无需 Node.js 或 Rust。
 
 本版修复引用定位切换分支、草稿重复写附件、自动联网和续写费用不透明、上下文选择不保存、历史读取与来源记录性能等问题；增加原始错误详情、删除此轮、数据维护和首次 API 配置入口。
+
+**2026-10-26 Motion 优化更新（仍为 v0.1.6）**：统一侧边栏、选择器、消息、弹层、附件、来源、对话树和 Usage 动效，支持减少动画，保留现有布局、8 套配色与业务行为。124 项 UI、110 项单元、105 项 Rust 测试及四组生产 WebView 回归通过；[专项报告](../../docs/v0.1.6-motion-report.md)。正式 Release 安装包和本目录已同步。
 
 **2026-10-23 AI 标题更新（仍为 v0.1.6）**：新会话首次发送后由当前模型概括短标题，仅额外调用一次；不阻塞正文，不重复生成，也不覆盖手动名称。安装包与 SHA-256 已同步更新。
 

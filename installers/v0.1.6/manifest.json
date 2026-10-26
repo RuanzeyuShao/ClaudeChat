@@ -1,14 +1,15 @@
 {
   "product": "ClaudeChat",
   "version": "0.1.6",
+  "revision": "motion",
   "platform": "windows-x64",
   "installer": "ClaudeChat_0.1.6_x64-setup.exe",
-  "bytes": 7057666,
-  "sha256": "7c2aaafd095373f24048b8e70d13d28092fc2d72d404c0768ece2d904b998b62",
-  "builtAt": "2026-10-23T08:23:58.878Z",
+  "bytes": 7065781,
+  "sha256": "7707a03a00acd5412549706d2f2f3bec674dde58ef819aff6c5265f0611821be",
+  "builtAt": "2026-10-26T01:22:56.740Z",
   "branch": "main",
-  "sourceCommit": "98c32ae778d49caee8fd36e6124c60ee709e4a2c",
+  "sourceCommit": "483fd6fd40be4c344eddbabb536f85c9624ee3a5",
   "githubReleasePublished": true,
-  "releaseUrl": "https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.6",
-  "revision": "2026-10-23-ai-titles"
+  "nativeExecutableSha256": "8574c8832ab9769167317c33227fcf08e1d1f4a28089a8148332bf98af2a1f96",
+  "releaseUrl": "https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.6"
 }

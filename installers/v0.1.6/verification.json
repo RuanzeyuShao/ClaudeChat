@@ -1,61 +1,159 @@
 {
   "version": "0.1.6",
-  "date": "2026-10-23",
-  "revision": "2026-10-23-ai-titles",
-  "sourceCommit": "98c32ae778d49caee8fd36e6124c60ee709e4a2c",
-  "installerSha256": "7c2aaafd095373f24048b8e70d13d28092fc2d72d404c0768ece2d904b998b62",
+  "revision": "motion",
+  "sourceCommit": "483fd6fd40be4c344eddbabb536f85c9624ee3a5",
+  "installer": {
+    "file": "ClaudeChat_0.1.6_x64-setup.exe",
+    "bytes": 7065781,
+    "sha256": "7707a03a00acd5412549706d2f2f3bec674dde58ef819aff6c5265f0611821be"
+  },
+  "githubReleaseModified": true,
+  "releaseTagModified": false,
+  "typecheck": {
+    "passed": true,
+    "command": "npm run typecheck"
+  },
+  "frontendBuild": {
+    "passed": true,
+    "modules": 2287
+  },
+  "unitTests": {
+    "passed": 110,
+    "failed": 0,
+    "files": 15
+  },
+  "rustTests": {
+    "passed": 105,
+    "failed": 0
+  },
+  "browserTests": {
+    "passed": 124,
+    "failed": 0,
+    "skipped": 0,
+    "flaky": 0,
+    "durationMs": 261872.559,
+    "rawReport": "../v0.1.6-motion/validation/browser-results.json"
+  },
+  "nativeTests": {
+    "startupRestartAndPalettes": true,
+    "aiTitles": true,
+    "recoveryAndUsage": true,
+    "motion": true,
+    "isolatedSqlite": true,
+    "existingSettingsUnchanged": true
+  },
+  "coverage": {
+    "motionCases": 11,
+    "palettes": 8,
+    "themeModes": [
+      "light",
+      "dark",
+      "system"
+    ],
+    "reducedMotion": [
+      "normal",
+      "reduce"
+    ],
+    "browserDeviceScales": [
+      1,
+      1.25,
+      1.5,
+      2
+    ],
+    "nativeDeviceScaleEmulation": [
+      {
+        "deviceScaleFactor": 1,
+        "viewport": "1100×800",
+        "overflow": false,
+        "closeIconMaxOffset": 0
+      },
+      {
+        "deviceScaleFactor": 1.25,
+        "viewport": "1100×800",
+        "overflow": false,
+        "closeIconMaxOffset": 0
+      },
+      {
+        "deviceScaleFactor": 1.5,
+        "viewport": "1100×800",
+        "overflow": false,
+        "closeIconMaxOffset": 0
+      }
+    ],
+    "realDisplayDpiChanged": false,
+    "continuousGpuOrPowerProfiling": false
+  },
+  "preserved": {
+    "version": true,
+    "dependencies": true,
+    "rustSource": true,
+    "databaseSchema": true,
+    "providerAdapters": true,
+    "usageCalculations": true
+  },
+  "releaseConsistency": {
+    "passed": true,
+    "publishedMaterials": "../v0.1.6"
+  },
+  "report": "../../docs/v0.1.6-motion-report.md",
+  "date": "2026-10-26",
+  "installerSha256": "7707a03a00acd5412549706d2f2f3bec674dde58ef819aff6c5265f0611821be",
   "checks": [
+    {
+      "command": "npm run typecheck",
+      "status": "passed"
+    },
     {
       "command": "npm test",
       "passed": 110
     },
     {
-      "command": "cargo test --manifest-path src-tauri/Cargo.toml --no-fail-fast",
+      "command": "cargo test --manifest-path src-tauri/Cargo.toml",
       "passed": 105
     },
     {
-      "command": "npm run test:ui -- tests/browser/usage.spec.ts tests/browser/preferences-v015.spec.ts tests/browser/search-settings-close.spec.ts",
-      "passed": 21
-    },
-    {
-      "command": "npm run build",
-      "status": "passed"
+      "command": "npm run test:ui",
+      "passed": 124
     },
     {
       "command": "npm run tauri:build -- --bundles nsis",
       "status": "passed"
     },
     {
-      "command": "node scripts/native-title-smoke.mjs src-tauri/target-v014/release/claude-chat.exe",
+      "command": "node scripts/native-startup-smoke.mjs",
       "status": "passed"
     },
     {
-      "command": "node scripts/native-startup-smoke.mjs src-tauri/target-v014/release/claude-chat.exe",
+      "command": "node scripts/native-title-smoke.mjs",
       "status": "passed"
     },
     {
-      "command": "node scripts/native-recovery-smoke.mjs src-tauri/target-v014/release/claude-chat.exe",
+      "command": "node scripts/native-recovery-smoke.mjs",
+      "status": "passed"
+    },
+    {
+      "command": "node scripts/native-motion-smoke.mjs",
       "status": "passed"
     }
   ],
   "previousValidation": {
     "version": "0.1.6",
-    "date": "2026-10-19",
-    "revision": "2026-10-19-ui-close-fixes",
-    "sourceCommit": "82433b383c9b7c4b9b673513e6142f105f3d97b6",
-    "installerSha256": "2c98ac2ca7bbc4ff2b2c4bf0369dd07d129cc40cb5d147d895a8d342ea03c00d",
+    "date": "2026-10-23",
+    "revision": "2026-10-23-ai-titles",
+    "sourceCommit": "98c32ae778d49caee8fd36e6124c60ee709e4a2c",
+    "installerSha256": "7c2aaafd095373f24048b8e70d13d28092fc2d72d404c0768ece2d904b998b62",
     "checks": [
       {
         "command": "npm test",
-        "passed": 109
+        "passed": 110
       },
       {
-        "command": "npm run test:ui -- tests/browser/experience.spec.ts",
-        "passed": 12
+        "command": "cargo test --manifest-path src-tauri/Cargo.toml --no-fail-fast",
+        "passed": 105
       },
       {
-        "command": "npm run test:ui -- tests/browser/search-settings-close.spec.ts",
-        "passed": 10
+        "command": "npm run test:ui -- tests/browser/usage.spec.ts tests/browser/preferences-v015.spec.ts tests/browser/search-settings-close.spec.ts",
+        "passed": 21
       },
       {
         "command": "npm run build",
@@ -66,36 +164,40 @@
         "status": "passed"
       },
       {
+        "command": "node scripts/native-title-smoke.mjs src-tauri/target-v014/release/claude-chat.exe",
+        "status": "passed"
+      },
+      {
         "command": "node scripts/native-startup-smoke.mjs src-tauri/target-v014/release/claude-chat.exe",
-        "status": "passed",
-        "covers": [
-          "empty and nonempty search dismissal",
-          "restored conversation list",
-          "settings close icon centering",
-          "startup and restart",
-          "theme and draft persistence"
-        ]
+        "status": "passed"
+      },
+      {
+        "command": "node scripts/native-recovery-smoke.mjs src-tauri/target-v014/release/claude-chat.exe",
+        "status": "passed"
       }
     ],
-    "initialReleaseValidation": {
-      "date": "2026-10-18",
-      "sourceCommit": "d9299fa59427d288e004d493335c529015dc5f69",
+    "previousValidation": {
+      "version": "0.1.6",
+      "date": "2026-10-19",
+      "revision": "2026-10-19-ui-close-fixes",
+      "sourceCommit": "82433b383c9b7c4b9b673513e6142f105f3d97b6",
+      "installerSha256": "2c98ac2ca7bbc4ff2b2c4bf0369dd07d129cc40cb5d147d895a8d342ea03c00d",
       "checks": [
         {
           "command": "npm test",
           "passed": 109
         },
         {
-          "command": "cargo test --manifest-path src-tauri/Cargo.toml",
-          "passed": 99
+          "command": "npm run test:ui -- tests/browser/experience.spec.ts",
+          "passed": 12
         },
         {
-          "command": "npm run test:ui",
-          "passed": 103
+          "command": "npm run test:ui -- tests/browser/search-settings-close.spec.ts",
+          "passed": 10
         },
         {
-          "command": "npm run test:ui -- tests/browser/v016.spec.ts tests/browser/preferences-v015.spec.ts tests/browser/composer-follow.spec.ts",
-          "passed": 14
+          "command": "npm run build",
+          "status": "passed"
         },
         {
           "command": "npm run tauri:build -- --bundles nsis",
@@ -103,15 +205,52 @@
         },
         {
           "command": "node scripts/native-startup-smoke.mjs src-tauri/target-v014/release/claude-chat.exe",
-          "status": "passed"
-        },
-        {
-          "command": "node scripts/native-recovery-smoke.mjs src-tauri/target-v014/release/claude-chat.exe",
-          "status": "passed"
+          "status": "passed",
+          "covers": [
+            "empty and nonempty search dismissal",
+            "restored conversation list",
+            "settings close icon centering",
+            "startup and restart",
+            "theme and draft persistence"
+          ]
         }
-      ]
+      ],
+      "initialReleaseValidation": {
+        "date": "2026-10-18",
+        "sourceCommit": "d9299fa59427d288e004d493335c529015dc5f69",
+        "checks": [
+          {
+            "command": "npm test",
+            "passed": 109
+          },
+          {
+            "command": "cargo test --manifest-path src-tauri/Cargo.toml",
+            "passed": 99
+          },
+          {
+            "command": "npm run test:ui",
+            "passed": 103
+          },
+          {
+            "command": "npm run test:ui -- tests/browser/v016.spec.ts tests/browser/preferences-v015.spec.ts tests/browser/composer-follow.spec.ts",
+            "passed": 14
+          },
+          {
+            "command": "npm run tauri:build -- --bundles nsis",
+            "status": "passed"
+          },
+          {
+            "command": "node scripts/native-startup-smoke.mjs src-tauri/target-v014/release/claude-chat.exe",
+            "status": "passed"
+          },
+          {
+            "command": "node scripts/native-recovery-smoke.mjs src-tauri/target-v014/release/claude-chat.exe",
+            "status": "passed"
+          }
+        ]
+      },
+      "nativeIsolation": "Explicit --data-dir to temporary database directory; inline mock API keys and localhost mock server; no real API usage or system key writes"
     },
-    "nativeIsolation": "Explicit --data-dir to temporary database directory; inline mock API keys and localhost mock server; no real API usage or system key writes"
-  },
-  "nativeIsolation": "Explicit --data-dir; local HTTP model fixture with inline mock key; no real API quota or system credentials used"
+    "nativeIsolation": "Explicit --data-dir; local HTTP model fixture with inline mock key; no real API quota or system credentials used"
+  }
 }

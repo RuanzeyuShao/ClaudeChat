@@ -9,6 +9,7 @@
   "builtAt": "2026-10-26T01:22:56.740Z",
   "branch": "main",
   "sourceCommit": "483fd6fd40be4c344eddbabb536f85c9624ee3a5",
-  "githubReleasePublished": false,
-  "nativeExecutableSha256": "8574c8832ab9769167317c33227fcf08e1d1f4a28089a8148332bf98af2a1f96"
+  "githubReleasePublished": true,
+  "nativeExecutableSha256": "8574c8832ab9769167317c33227fcf08e1d1f4a28089a8148332bf98af2a1f96",
+  "releaseUrl": "https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.6"
 }

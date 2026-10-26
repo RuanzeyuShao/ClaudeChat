@@ -7,7 +7,7 @@
     "bytes": 7065781,
     "sha256": "7707a03a00acd5412549706d2f2f3bec674dde58ef819aff6c5265f0611821be"
   },
-  "githubReleaseModified": false,
+  "githubReleaseModified": true,
   "releaseTagModified": false,
   "typecheck": {
     "passed": true,
@@ -95,5 +95,6 @@
     "passed": true,
     "publishedMaterials": "../v0.1.6"
   },
-  "report": "../../docs/v0.1.6-motion-report.md"
+  "report": "../../docs/v0.1.6-motion-report.md",
+  "date": "2026-10-26"
 }
