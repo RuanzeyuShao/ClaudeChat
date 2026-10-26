@@ -31,7 +31,7 @@ for(const scale of [1,1.25,1.5,2])for(const fontSize of [14,24])test(`settings c
   const page=await context.newPage();await page.goto('/');await expect(page.locator('.app-boot')).toHaveCount(0)
   await page.evaluate(async size=>{const path='/src/stores/chat.ts';await (await import(path)).useChatStore().setFontSize(size)},fontSize)
   await page.getByRole('button',{name:'设置',exact:true}).click()
-  const button=page.getByRole('button',{name:'关闭设置',exact:true});await expect(button).toBeVisible()
+  const button=page.getByRole('button',{name:'关闭设置',exact:true});await expect(button).toBeVisible();await expect(page.locator('.api-settings')).toHaveCSS('transform','none')
   const offsets=await button.evaluate(el=>{const b=el.getBoundingClientRect(),icon=el.querySelector('svg')!.getBoundingClientRect();return {x:(icon.left+icon.right-b.left-b.right)/2,y:(icon.top+icon.bottom-b.top-b.bottom)/2,width:b.width,height:b.height}})
   expect(Math.abs(offsets.x)).toBeLessThan(.5);expect(Math.abs(offsets.y)).toBeLessThan(.5);expect(offsets.width).toBeCloseTo(32,2);expect(offsets.height).toBeCloseTo(32,2)
   if(scale===1.5){mkdirSync('dist-release/v0.1.6/screenshots/ui-close-fixes',{recursive:true});await page.locator('.api-settings-header').screenshot({path:`dist-release/v0.1.6/screenshots/ui-close-fixes/settings-${fontSize}px.png`})}

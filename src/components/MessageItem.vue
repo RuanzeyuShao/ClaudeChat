@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import {vMotion} from '../motion/runtime'
+import MotionTransition from '../motion/MotionTransition.vue'
 import { searchQueries } from '../utils/searchTrace'
 import { searchStatusLabel } from '../utils/searchTrace'
 import { useChatStore } from '../stores/chat'
 import { useUiStore } from '../stores/ui'
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { Copy, Check, Quote, RotateCcw, Pencil, ArrowRight, GitCompareArrows, ChevronLeft, ChevronRight, FileText, FileCode2, Sparkles, ChartNoAxesCombined, Globe } from '@lucide/vue'
 import type { Attachment, Message, Usage } from '../types'
 import RichContent from './RichContent.vue'
@@ -15,7 +17,7 @@ import BaseModal from './BaseModal.vue'
 import SourceList from './SourceList.vue'
 import { providerLabel } from '../chatProviders'
 import { readableCitations } from '../utils/citations'
-const props=defineProps<{message:Message;canRegenerate?:boolean;codeAttachments?:Attachment[];usage?:Usage}>()
+const props=defineProps<{message:Message;animateEntry?:boolean;canRegenerate?:boolean;codeAttachments?:Attachment[];usage?:Usage}>()
 const emit=defineEmits<{regenerate:[];preview:[attachment:Attachment];diff:[attachment:Attachment,proposed:string]}>()
 const chat=useChatStore(), ui=useUiStore(), article=ref<HTMLElement>(), copied=ref(false), editing=ref(false), editedText=ref(''), usageOpen=ref(false), chooseCode=ref(false)
 
@@ -27,7 +29,9 @@ const generationText=computed(()=>{
 })
 const isLeaf=computed(()=>chat.active?.messages.at(-1)?.id===props.message.id)
 const canContinue=computed(()=>isLeaf.value && generation.value && ['length','interrupted','stopped','context_limit','paused'].includes(generation.value.status))
-async function copy(){try{await navigator.clipboard.writeText(readableCitations(props.message.content,props.message.sources));copied.value=true;ui.notify('消息已复制');setTimeout(()=>copied.value=false,1400)}catch(e){ui.failure(e)}}
+let copyTimer:ReturnType<typeof setTimeout>|undefined
+onBeforeUnmount(()=>clearTimeout(copyTimer))
+async function copy(){try{await navigator.clipboard.writeText(readableCitations(props.message.content,props.message.sources));copied.value=true;ui.notify('消息已复制');clearTimeout(copyTimer);copyTimer=setTimeout(()=>copied.value=false,1400)}catch(e){ui.failure(e)}}
 function edit(){editedText.value=props.message.content;editing.value=true}
 async function resend(){if(!editedText.value.trim())return;try{if(await chat.editResend(props.message,editedText.value))editing.value=false}catch(e){ui.failure(e)}}
 function quote(){const selection=window.getSelection();const selected=selection?.anchorNode && selection.focusNode && article.value?.querySelector('.markdown')?.contains(selection.anchorNode) && article.value?.querySelector('.markdown')?.contains(selection.focusNode)?selection.toString().trim():'';chat.quote(props.message,selected || undefined);ui.notify('已加入回复引用','info')}
@@ -37,7 +41,7 @@ function reviewCode(){const files=props.codeAttachments || [];if(!proposal.value
 
 </script>
 <template>
- <article ref="article" :class="['message',message.role]" :data-message-id="message.id">
+ <article ref="article" v-motion="animateEntry?(message.role==='user'?'message-user':'message-assistant'):false" :class="['message',message.role]" :data-message-id="message.id">
   <div v-if="message.role==='assistant'" class="message-name"><Sparkles :size="16"/>ClaudeChat <span v-if="origin || usage" class="message-connection" :title="origin?`${providerLabel(origin.provider)} · ${origin.model} · ${origin.profileName || origin.profileId}`:'历史记录仅保留 Usage 模型；Provider 来源未记录'">{{ origin?providerLabel(origin.provider):'历史模型' }} · {{ origin?.model || usage?.model }}</span></div>
   <div class="message-body">
    <div v-if="message.attachments?.length" class="attachment-list"><button v-for="item in message.attachments" :key="item.id" class="attachment-card attachment-open" :aria-label="`预览 ${item.name}`" @click="emit('preview',item)"><AttachmentThumbnail v-if="item.kind==='image'" :attachment="item"/><component v-else :is="item.kind==='code'?FileCode2:FileText" :size="23"/><span><strong>{{ item.name }}</strong><small>{{ Math.ceil(item.size/1024) }} KB · 点击预览</small></span></button></div>
@@ -47,7 +51,7 @@ function reviewCode(){const files=props.codeAttachments || [];if(!proposal.value
    <form v-if="editing" class="message-edit" @submit.prevent="resend"><textarea v-model="editedText" rows="5" aria-label="编辑历史消息"/><div><button class="primary" type="submit" :disabled="chat.loading || !editedText.trim()">创建分支并重发</button><button class="secondary" type="button" @click="editing=false">取消</button></div></form>
    <RichContent v-else-if="message.content" :content="message.content" :sources="message.role==='assistant'?(message.sources || []):undefined"/>
    <div v-else-if="message.pending" class="thinking" aria-hidden="true"><i/><i/><i/></div>
-   <SourceList v-if="message.sources?.length" :key="message.id" :sources="message.sources"/>
+   <MotionTransition name="motion-fade" speed="fast"><SourceList v-if="message.sources?.length" :key="message.id" :sources="message.sources"/></MotionTransition>
   </div>
   <div v-if="message.role==='assistant' && !message.pending && generation && (generation.status!=='complete' || generation.continuations>0 || generation.recoveries)" class="generation-notice" role="status"><span>{{ generationText }}</span><small v-if="generation.recoveries">已自动恢复 {{ generation.recoveries }} 次</small><small v-if="generation.status!=='complete' && generation.continuations">已自动续写 {{ generation.continuations }} 次</small><button v-if="canContinue" class="secondary" :disabled="chat.loading || chat.profileBusy" @click="chat.continueReply(message)">{{ message.content?'继续生成':'重试' }}</button><details v-if="generation.error"><summary>查看中断原因</summary><p>{{ generation.error }}</p></details></div>
   <div v-if="message.content && !message.pending" class="message-toolbar">
@@ -56,7 +60,7 @@ function reviewCode(){const files=props.codeAttachments || [];if(!proposal.value
   </div>
   <div v-if="usage && usageOpen" class="message-usage"><span>{{ usageOriginLabel(chat.usageOrigins[usage.id]) }} · 输入 {{ usage.inputTokens.toLocaleString() }} · 输出 {{ usage.outputTokens.toLocaleString() }}</span><span>思考 {{ usage.thinkingTokens.toLocaleString() }} Token（{{ thinkingOriginLabel(chat.usageOrigins[usage.id]) }}） · {{ (usage.durationMs/1000).toFixed(1) }}s · 估算费用 ${{ usage.estimatedCost.toFixed(4) }}</span></div>
  </article>
- <BaseModal v-if="chooseCode" title="选择要比较的代码文件" @close="chooseCode=false"><div class="preset-list"><button v-for="file in codeAttachments" :key="file.id" @click="emit('diff',file,proposal);chooseCode=false"><FileCode2 :size="16"/>{{ file.name }}</button></div></BaseModal>
+ <MotionTransition name="motion-modal" appear teleport><BaseModal v-if="chooseCode" title="选择要比较的代码文件" @close="chooseCode=false"><div class="preset-list"><button v-for="file in codeAttachments" :key="file.id" @click="emit('diff',file,proposal);chooseCode=false"><FileCode2 :size="16"/>{{ file.name }}</button></div></BaseModal></MotionTransition>
 </template>
 <style scoped>
 .generation-notice{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:16px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--panel);color:var(--muted);font-size:12px;line-height:1.7;overflow-wrap:anywhere}.generation-notice span{flex:1;min-width:160px}.generation-notice small{font-size:11px}.generation-notice button{flex:none;min-height:32px}.generation-notice details{flex-basis:100%;min-width:0}.generation-notice details p{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0 0}

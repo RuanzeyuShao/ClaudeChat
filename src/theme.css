@@ -10,7 +10,7 @@
   --shadow: 0 6px 20px #172c2510, 0 18px 50px #172c2514;
   --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px;
-  --motion-fast: 120ms; --motion-normal: 180ms; --motion-slow: 220ms; --border: var(--line);
+  --border: var(--line);
   color-scheme: light;
 }
 html[data-theme=dark] {
@@ -25,7 +25,7 @@ html[data-theme=dark] {
   color-scheme: dark;
 }
 * { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
-::-webkit-scrollbar { width: 8px; height: 8px; }::-webkit-scrollbar-thumb { border-radius: 8px; background: var(--line-strong); border: 2px solid var(--panel); }::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+::-webkit-scrollbar { width: 8px; height: 8px; }::-webkit-scrollbar-thumb { border-radius: 8px; background: var(--line-strong); border: 2px solid var(--panel); }::-webkit-scrollbar-thumb:hover:not(:disabled) { background: var(--muted); }
 .hljs { background: var(--code-bg); color: var(--text); }
 html:not([data-theme=dark]) .hljs-keyword,html:not([data-theme=dark]) .hljs-doctag,html:not([data-theme=dark]) .hljs-type { color: #aa3946; }
 html:not([data-theme=dark]) .hljs-title { color: #744fa6; }
@@ -35,11 +35,3 @@ html:not([data-theme=dark]) .hljs-built_in,html:not([data-theme=dark]) .hljs-sym
 html:not([data-theme=dark]) .hljs-comment,html:not([data-theme=dark]) .hljs-code { color: #708074; }
 html:not([data-theme=dark]) .hljs-name,html:not([data-theme=dark]) .hljs-selector-tag { color: #267a4a; }
 .hljs-comment,.hljs-quote {color:var(--muted)!important}
-/* Shared surface transitions, without overriding width-only minimap animations or brand marks. */
-html[data-color-theme] body,
-html[data-color-theme] :is(.sidebar,.chat-header,.messages,.composer-dock,.input-box,.message-body,.api-settings,.api-settings-header,.api-settings-secondary,.api-config-list,.chat-provider-panel,.document-preview,.usage-dashboard,.usage-chart-card,.source-entry,.base-modal) {
-  transition:background-color 180ms ease,color 180ms ease,border-color 180ms ease,box-shadow 180ms ease;
-}
-html[data-color-theme] :is(button,input,textarea,select) {transition:background-color 180ms ease,color 180ms ease,border-color 180ms ease,box-shadow 180ms ease,transform 120ms ease}
-html[data-color-theme] :is(.usage-line,.usage-point-token,.usage-point-cost,.usage-brush) {transition:stroke 180ms ease,fill 180ms ease}
-@media(prefers-reduced-motion:reduce){html[data-color-theme] body,html[data-color-theme] :is(.sidebar,.chat-header,.messages,.composer-dock,.input-box,.message-body,.api-settings,.api-settings-header,.api-settings-secondary,.api-config-list,.chat-provider-panel,.document-preview,.usage-dashboard,.usage-chart-card,.source-entry,.base-modal,button,input,textarea,select,.usage-line,.usage-point-token,.usage-point-cost,.usage-brush){transition-duration:.01ms!important}}

@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import MotionTransition from '../motion/MotionTransition.vue'
+import {animate} from '../motion/runtime'
+import {useSidebarMotion} from '../motion/useSidebarMotion'
 import ConversationTitle from './ConversationTitle.vue'
 import { version } from '../../package.json'
 import ProviderSelector from './ProviderSelector.vue'
@@ -11,7 +14,9 @@ import { useUiStore } from '../stores/ui'
 import { historyGroup } from '../utils/experience'
 import { api } from '../services/tauri'
 import type { Conversation, ProviderKind } from '../types'
-defineProps<{page:'chat'|'usage';collapsed:boolean;width:number}>()
+const props=defineProps<{page:'chat'|'usage';collapsed:boolean;width:number}>()
+const sidebarRoot=ref<HTMLElement>()
+useSidebarMotion(sidebarRoot,()=>props.collapsed)
 const emit=defineEmits<{openSettings:[provider?:ProviderKind,profileId?:string];openUsage:[];openChat:[];toggle:[]}>()
 const chat=useChatStore(), ui=useUiStore(), query=ref(''), results=ref<Conversation[]>([]), searching=ref(false)
 let runningSearch=false, pendingSearch:{value:string;sequence:number}|null=null
@@ -43,13 +48,16 @@ async function remove(item:Conversation){const ok=await ui.request({title:'删�
 async function pin(id:string){try{await chat.organize(id,{...chat.organization[id],pinned:!chat.organization[id]?.pinned})}catch(e){ui.failure(e)}}
 async function select(id:string){try{await chat.select(id);emit('openChat')}catch(e){ui.failure(e)}}
 async function newChat(){try{await chat.newConversation();emit('openChat')}catch(e){ui.failure(e)}}
+let knownTitles=new Map<string,string>(),knownOrganization=''
+watch(()=>chat.conversations.map(c=>[c.id,c.title] as const),(items)=>{if(!props.collapsed){for(const [id,title] of items)if(knownTitles.has(id) && knownTitles.get(id)!==title){const row=Array.from(sidebarRoot.value?.querySelectorAll<HTMLElement>('[data-conversation-id]') || []).find(el=>el.dataset.conversationId===id);const label=row?.querySelector('.conversation-title');if(label)animate(label,[{opacity:.6},{opacity:1}],'normal')}}knownTitles=new Map(items)},{flush:'post',immediate:true})
+watch(()=>JSON.stringify(chat.organization),value=>{if(knownOrganization && value!==knownOrganization && !props.collapsed){const row=sidebarRoot.value?.querySelector('.conversation.active');if(row)animate(row,[{opacity:.65},{opacity:1}],'normal')}knownOrganization=value},{flush:'post',immediate:true})
 const menus=new Map<string,InstanceType<typeof ActionMenu>>()
 function menuRef(id:string,instance:unknown){if(instance)menus.set(id,instance as InstanceType<typeof ActionMenu>);else menus.delete(id)}
 onMounted(()=>window.addEventListener('chat-search-history',focusSearch))
 onUnmounted(()=>{clearTimeout(timer);sequence++;window.removeEventListener('chat-search-history',focusSearch)})
 </script>
 <template>
- <aside class="sidebar" :class="{'sidebar-collapsed':collapsed}" :style="{width:`${width}px`}">
+ <aside ref="sidebarRoot" class="sidebar" :class="{'sidebar-collapsed':collapsed}" :style="{width:`${width}px`}">
   <div class="brand"><Sparkles :size="22" :stroke-width="1.6"/><span class="brand-name">ClaudeChat</span><button class="icon-button sidebar-toggle" :aria-label="collapsed?'展开侧边栏':'折叠侧边栏'" @click="emit('toggle')"><component :is="collapsed?PanelLeftOpen:PanelLeftClose" :size="17"/></button></div>
   <button class="new-chat" aria-label="新建对话" title="新建对话 · Ctrl+N" :disabled="chat.loading" @click="newChat"><Plus :size="18"/><span>新建对话</span><kbd>Ctrl N</kbd></button>
   <ProviderSelector @configure="(kind,profileId)=>emit('openSettings',kind,profileId)"/>
@@ -57,8 +65,8 @@ onUnmounted(()=>{clearTimeout(timer);sequence++;window.removeEventListener('chat
   <div class="history-heading"><span>历史会话</span><div><button class="icon-button" title="筛选会话" aria-label="筛选会话" :class="{active:filtersOpen}" @click="filtersOpen=!filtersOpen"><Filter :size="15"/></button><button ref="searchButton" class="icon-button" title="搜索历史 · Ctrl+K" aria-label="搜索历史对话" :aria-expanded="searchOpen" aria-controls="conversation-history-search" @click="focusSearch"><Search :size="16"/></button></div></div>
   <div v-if="searchOpen" id="conversation-history-search" class="history-search-wrap"><Search :size="14"/><input ref="searchInput" v-model="query" type="search" placeholder="搜索会话、消息、附件" aria-label="搜索历史对话" @keydown.esc.stop.prevent="closeSearch"/><button class="icon-button" aria-label="关闭搜索" title="关闭搜索" @click="closeSearch"><X :size="14"/></button></div>
   <div v-if="filtersOpen" class="conversation-filters"><select v-model="folder" aria-label="筛选文件夹"><option value="">全部文件夹</option><option v-for="f in folders" :key="f" :value="f">{{ f }}</option></select><select v-model="tag" aria-label="筛选标签"><option value="">全部标签</option><option v-for="t in tags" :key="t">{{ t }}</option></select><div><button v-if="folder" @click="renameCategory('folder')">管理文件夹</button><button v-if="tag" @click="renameCategory('tag')">管理标签</button></div><label><input v-model="pinned" type="checkbox"/>仅置顶</label></div>
-  <nav class="conversation-list" aria-label="历史会话"><section v-for="group in groups" :key="group.name"><h3>{{ group.name }}</h3><div v-for="item in group.items" :key="item.id" class="conversation" :class="{active:item.id===chat.activeId && page==='chat'}" @contextmenu.prevent="menus.get(item.id)?.show()"><button class="conversation-link" :title="item.title" :disabled="chat.loading" @click="select(item.id)"><Pin v-if="chat.organization[item.id]?.pinned" :size="13"/><MessageSquare v-else :size="15" class="conversation-icon"/><ConversationTitle :title="item.title" :folder="chat.organization[item.id]?.folder"/></button><ActionMenu :ref="instance=>menuRef(item.id,instance)" label="会话操作"><button role="menuitem" :disabled="chat.loading" @click="rename(item.id,item.title)"><Pencil :size="15"/>重命名</button><button role="menuitem" :disabled="chat.loading" @click="pin(item.id)"><Pin :size="15"/>{{ chat.organization[item.id]?.pinned?'取消置顶':'置顶' }}</button><button role="menuitem" :disabled="chat.loading" @click="classify(item.id)"><Folder :size="15"/>文件夹与标签</button><hr/><button role="menuitem" class="danger" :disabled="chat.loading" @click="remove(item)"><Trash2 :size="15"/>删除对话</button></ActionMenu></div></section><p v-if="searching" class="search-empty">正在搜索…</p><p v-else-if="!filtered.length" class="search-empty">没有匹配的对话</p></nav>
+  <nav class="conversation-list" aria-label="历史会话"><section v-for="group in groups" :key="group.name"><h3>{{ group.name }}</h3><div v-for="item in group.items" :key="item.id" class="conversation" :data-conversation-id="item.id" :class="{active:item.id===chat.activeId && page==='chat'}" @contextmenu.prevent="menus.get(item.id)?.show()"><button class="conversation-link" :title="item.title" :disabled="chat.loading" @click="select(item.id)"><Pin v-if="chat.organization[item.id]?.pinned" :size="13"/><MessageSquare v-else :size="15" class="conversation-icon"/><ConversationTitle :title="item.title" :folder="chat.organization[item.id]?.folder"/></button><ActionMenu :ref="instance=>menuRef(item.id,instance)" label="会话操作"><button role="menuitem" :disabled="chat.loading" @click="rename(item.id,item.title)"><Pencil :size="15"/>重命名</button><button role="menuitem" :disabled="chat.loading" @click="pin(item.id)"><Pin :size="15"/>{{ chat.organization[item.id]?.pinned?'取消置顶':'置顶' }}</button><button role="menuitem" :disabled="chat.loading" @click="classify(item.id)"><Folder :size="15"/>文件夹与标签</button><hr/><button role="menuitem" class="danger" :disabled="chat.loading" @click="remove(item)"><Trash2 :size="15"/>删除对话</button></ActionMenu></div></section><p v-if="searching" class="search-empty">正在搜索…</p><p v-else-if="!filtered.length" class="search-empty">没有匹配的对话</p></nav>
   <div class="sidebar-footer"><button class="settings-button" title="设置 · Ctrl+," aria-label="设置" @click="emit('openSettings')"><Settings2 :size="18"/><span>设置</span></button><small>v{{ version }}</small></div>
  </aside>
- <BaseModal v-if="classifyTarget" title="会话分类" :busy="saving" @close="!saving && (classifyTarget=null)"><form id="classification" @submit.prevent="saveClassification"><label>文件夹<input v-model="folderDraft" placeholder="留空移出文件夹" list="folder-names"/><datalist id="folder-names"><option v-for="f in folders" :key="f" :value="f"/></datalist></label><label>标签<input v-model="tagsDraft" placeholder="用逗号分隔多个标签"/></label></form><template #footer><button class="secondary" :disabled="saving" @click="classifyTarget=null">取消</button><button class="primary" form="classification" type="submit" :disabled="saving">{{ saving?'保存中…':'保存' }}</button></template></BaseModal>
+ <MotionTransition name="motion-modal" appear teleport><BaseModal v-if="classifyTarget" title="会话分类" :busy="saving" @close="!saving && (classifyTarget=null)"><form id="classification" @submit.prevent="saveClassification"><label>文件夹<input v-model="folderDraft" placeholder="留空移出文件夹" list="folder-names"/><datalist id="folder-names"><option v-for="f in folders" :key="f" :value="f"/></datalist></label><label>标签<input v-model="tagsDraft" placeholder="用逗号分隔多个标签"/></label></form><template #footer><button class="secondary" :disabled="saving" @click="classifyTarget=null">取消</button><button class="primary" form="classification" type="submit" :disabled="saving">{{ saving?'保存中…':'保存' }}</button></template></BaseModal></MotionTransition>
 </template>

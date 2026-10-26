@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event'
 import { providerEntry, preference, type ChatProviderId, type ProviderPreference } from '../chatProviders'
 import { api } from '../services/tauri'
 import { useUiStore } from './ui'
+import {scrollBehavior} from '../motion/runtime'
 import { friendlyError, errorDetails } from '../utils/experience'
 import { snapshotSettings, identity, connectionChanged } from '../utils/connection'
 import { validateSearch } from '../utils/searchPolicy'
@@ -289,7 +290,7 @@ export const useChatStore = defineStore('chat', {
     async jumpNode(id:string){
       const node=(this.trees[this.activeId] || this.active?.messages || []).find(m=>m.id===id)
       const element=Array.from(document.querySelectorAll<HTMLElement>('[data-message-id]')).find(el=>el.dataset.messageId===id)
-      if(element){window.dispatchEvent(new Event('chat-jump-message'));element.scrollIntoView({behavior:'smooth',block:'center'});element.classList.add('reference-highlight');setTimeout(()=>element.classList.remove('reference-highlight'),1800)}
+      if(element){window.dispatchEvent(new Event('chat-jump-message'));element.scrollIntoView({behavior:scrollBehavior(),block:'center'});element.classList.add('reference-highlight');setTimeout(()=>element.classList.remove('reference-highlight'),1800)}
       else if(node)await useUiStore().request({title:'引用来源（其他分支）',value:node.content,multiline:true,readonly:true,confirm:'关闭'})
       else useUiStore().failure(new Error('引用来源已删除或不可用'))
     },

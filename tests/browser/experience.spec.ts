@@ -60,9 +60,9 @@ test('IME candidates, expanded draft, rename and theme preferences',async({page}
  await page.keyboard.press('Escape')
  await expect(page.getByText('Ctrl+Enter 发送 · Enter 换行')).toBeVisible()
 })
-for(const theme of ['light','dark'] as const)for(const scale of [1,1.25,1.5,2])test(`layout ${theme} ${scale*100}%`,async({browser})=>{
+for(const theme of ['light','dark'] as const)for(const scale of [1,1.25,1.5,2])test(`layout ${theme} ${scale*100}%`,async({browser,baseURL})=>{
  const context=await browser.newContext({viewport:{width:scale===1?1440:800,height:scale===1?900:600},deviceScaleFactor:scale,colorScheme:theme})
- const page=await context.newPage();await page.goto('http://127.0.0.1:1420',{waitUntil:'domcontentloaded'})
+ const page=await context.newPage();await page.goto(baseURL!,{waitUntil:'domcontentloaded'})
  await expect(page.locator('html')).toHaveAttribute('data-theme',theme)
  await expect(page.locator('.provider-status').first()).toHaveCSS('height','6px')
  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth)
@@ -72,9 +72,9 @@ for(const theme of ['light','dark'] as const)for(const scale of [1,1.25,1.5,2])t
  if(scale===1){mkdirSync(directory,{recursive:true});await page.screenshot({path:`${directory}/welcome-${theme}.png`});await page.keyboard.press('Control+,');await expect(page.getByRole('dialog',{name:'设置',exact:true})).toHaveCSS('opacity','1');await page.screenshot({path:`${directory}/settings-${theme}.png`})}
  await context.close()
 })
-test('640x480 icon sidebar and Provider panel remain within the viewport',async({browser})=>{
+test('640x480 icon sidebar and Provider panel remain within the viewport',async({browser,baseURL})=>{
  const context=await browser.newContext({viewport:{width:640,height:480},deviceScaleFactor:2})
- const page=await context.newPage();await page.goto('http://127.0.0.1:1420',{waitUntil:'domcontentloaded'})
+ const page=await context.newPage();await page.goto(baseURL!,{waitUntil:'domcontentloaded'})
  await expect(page.locator('.sidebar')).toHaveClass(/sidebar-collapsed/)
  await page.getByRole('button',{name:'GPT Chat',exact:true}).click()
  const box=await page.getByRole('dialog',{name:'GPT Chat 配置'}).boundingBox();expect(box!.x).toBeGreaterThanOrEqual(0);expect(box!.x+box!.width).toBeLessThanOrEqual(640);expect(box!.y+box!.height).toBeLessThanOrEqual(480)

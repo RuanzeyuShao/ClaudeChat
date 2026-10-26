@@ -15,6 +15,7 @@ async function seed(page:Page){
 }
 async function assertWidth(page:Page){
  await expect(page.locator('.chat-view')).toBeHidden()
+ await expect.poll(()=>page.locator('.sidebar').evaluate(el=>el.getAnimations().filter(a=>a instanceof CSSTransition && a.transitionProperty==='width').length)).toBe(0)
  const shell=await page.locator('.app-shell').boundingBox(),dashboard=await page.locator('.usage-dashboard').boundingBox(),sidebar=await page.locator('.sidebar').boundingBox();expect(dashboard!.width).toBeGreaterThanOrEqual(shell!.width-sidebar!.width-6)
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
  expect(await page.locator('.usage-scroll').evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true)
@@ -28,7 +29,7 @@ test('Dashboard closes by button/Escape and retains filters, draft, tree and rea
  await page.goto('/',{waitUntil:'domcontentloaded'});await seed(page)
  await page.getByRole('textbox',{name:'聊天输入框',exact:true}).fill('需要保留的草稿')
  await page.getByRole('button',{name:'对话树',exact:true}).click()
- await page.locator('.messages').evaluate(node=>node.scrollTop=120)
+ await page.locator('.messages').evaluate(node=>{node.dispatchEvent(new WheelEvent('wheel',{deltaY:-80,bubbles:true}));node.scrollTop=120})
  await page.waitForFunction(()=>document.querySelector('.latest-message-row')!==null)
  const reading=await page.locator('.messages').evaluate(node=>node.scrollTop)
  await page.getByRole('button',{name:'用量统计',exact:true}).click()
@@ -44,9 +45,9 @@ test('Dashboard closes by button/Escape and retains filters, draft, tree and rea
  await expect(page.getByRole('dialog',{name:'单次请求'})).toHaveCount(0);await expect(page.getByRole('button',{name:'关闭用量统计'})).toBeVisible()
  await page.keyboard.press('Escape');await expect(page.locator('.usage-dashboard')).toBeHidden();await expect(page.getByRole('region',{name:'对话树'})).toBeVisible()
 })
-for(const scale of [1,1.25,1.5])for(const theme of ['light','dark'] as const)test(`populated Dashboard ${theme} Windows browser ${scale*100}%`,async({browser})=>{
+for(const scale of [1,1.25,1.5])for(const theme of ['light','dark'] as const)test(`populated Dashboard ${theme} Windows browser ${scale*100}%`,async({browser,baseURL})=>{
  const context=await browser.newContext({viewport:{width:800,height:600},deviceScaleFactor:scale,colorScheme:theme}),page=await context.newPage()
- await page.goto('http://127.0.0.1:1420',{waitUntil:'domcontentloaded'});await seed(page);await page.getByRole('button',{name:'用量统计',exact:true}).click()
+ await page.goto(baseURL!,{waitUntil:'domcontentloaded'});await seed(page);await page.getByRole('button',{name:'用量统计',exact:true}).click()
  await expect(page.locator('.usage-card')).toHaveCount(7);await assertWidth(page)
  for(const card of await page.locator('.usage-card').all()){await card.scrollIntoViewIfNeeded();await expect(card).toBeInViewport();expect(await card.evaluate(node=>node.scrollWidth<=node.clientWidth)).toBe(true)}
  await page.getByRole('button',{name:'折叠侧边栏',exact:true}).click();await assertWidth(page);await page.getByRole('button',{name:'展开侧边栏',exact:true}).click();await assertWidth(page)

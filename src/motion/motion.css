@@ -1,0 +1,85 @@
+/* Shared surface transitions, without overriding width-only minimap animations or brand marks. */
+html[data-color-theme] body,
+html[data-color-theme] :is(.sidebar,.chat-header,.messages,.composer-dock,.input-box,.message-body,.api-settings,.api-settings-header,.api-settings-secondary,.api-config-list,.chat-provider-panel,.document-preview,.usage-dashboard,.usage-chart-card,.source-entry,.base-modal) {
+  transition:background-color var(--motion-normal) var(--motion-ease),color var(--motion-normal) var(--motion-ease),border-color var(--motion-normal) var(--motion-ease),box-shadow var(--motion-normal) var(--motion-ease);
+}
+html[data-color-theme] :is(.usage-line,.usage-point-token,.usage-point-cost,.usage-brush) {transition:stroke var(--motion-normal) var(--motion-ease),fill var(--motion-normal) var(--motion-ease)}
+/* Motion affects presentation only. Existing color tokens and resting geometry are retained. */
+html:not([data-motion-ready]) *,html:not([data-motion-ready]) *::before,html:not([data-motion-ready]) *::after{transition:none!important;animation:none!important}
+html[data-color-theme]{--motion-control:var(--motion-fast)}
+html[data-motion-theme-change=true]{--motion-control:var(--motion-normal)}
+html[data-color-theme] :is(button,input,textarea,select){transition:background-color var(--motion-control) var(--motion-ease),color var(--motion-control) var(--motion-ease),border-color var(--motion-control) var(--motion-ease),box-shadow var(--motion-fast) var(--motion-ease),transform var(--motion-fast) var(--motion-ease),opacity var(--motion-fast) var(--motion-ease)}
+button:active:not(:disabled){transform:scale(.97)}
+button:disabled{transform:none!important;filter:none!important;cursor:not-allowed}
+html[data-color-theme] .input-box{transition:border-color var(--motion-control) var(--motion-ease),box-shadow var(--motion-normal) var(--motion-ease),background-color var(--motion-normal) var(--motion-ease)}
+.input-box:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.motion-fade-enter-active,.motion-fade-leave-active,.motion-tooltip-enter-active,.motion-tooltip-leave-active{transition:opacity var(--motion-fast) var(--motion-ease)}
+.motion-fade-enter-from,.motion-fade-leave-to,.motion-tooltip-enter-from,.motion-tooltip-leave-to{opacity:0}
+.motion-provider-enter-active,.motion-provider-leave-active,.motion-dropdown-enter-active,.motion-dropdown-leave-active,.motion-panel-enter-active,.motion-panel-leave-active{transition:opacity var(--motion-normal) var(--motion-ease),transform var(--motion-normal) var(--motion-ease)}
+.motion-provider-enter-from,.motion-provider-leave-to{opacity:0;transform:translateY(6px)}
+.motion-dropdown-enter-from,.motion-dropdown-leave-to{opacity:0;transform:translateY(4px)}
+.motion-panel-enter-active,.motion-panel-leave-active{transition-duration:var(--motion-slow)}
+.motion-panel-enter-from,.motion-panel-leave-to{opacity:0;transform:translateX(6px)}
+.motion-modal-enter-active,.motion-modal-leave-active{transition:opacity var(--motion-normal) var(--motion-ease)}
+.motion-modal-enter-active :is(.modal-surface,.api-settings,.api-confirm),.motion-modal-leave-active :is(.modal-surface,.api-settings,.api-confirm){transition:transform var(--motion-normal) var(--motion-ease)}
+.motion-modal-enter-from,.motion-modal-leave-to{opacity:0}
+.motion-modal-enter-from :is(.modal-surface,.api-settings,.api-confirm),.motion-modal-leave-to :is(.modal-surface,.api-settings,.api-confirm){transform:scale(.98)}
+[class*="-leave-active"]{pointer-events:none!important}
+.toast-enter-active,.toast-leave-active{transition:opacity var(--motion-normal) var(--motion-ease),transform var(--motion-normal) var(--motion-ease)}
+.toast-enter-from,.toast-leave-to{opacity:0;transform:translateY(6px)}
+.motion-list-enter-active,.motion-list-leave-active{transition:opacity var(--motion-normal) var(--motion-ease),transform var(--motion-normal) var(--motion-ease)}
+.motion-list-enter-from,.motion-list-leave-to{opacity:0;transform:translateY(4px)}
+.motion-list-move{transition:transform var(--motion-normal) var(--motion-ease)}
+.motion-list-leave-active{position:absolute!important;max-width:100%}
+.motion-attachment-group{position:relative}
+html[data-color-theme] .sidebar{position:relative;overflow-x:clip;overflow-y:visible;transition:width var(--motion-slow) var(--motion-ease),background-color var(--motion-normal) var(--motion-ease),color var(--motion-normal) var(--motion-ease),border-color var(--motion-normal) var(--motion-ease)}
+.sidebar-collapsed>:is(.brand,.chat-provider-selector,.new-chat,.usage-nav,.history-heading,.conversation-list,.sidebar-footer){width:52px;max-width:52px}
+.sidebar-motion-ghost{position:absolute;pointer-events:none;white-space:nowrap;z-index:1;overflow:hidden}
+.resizing-panes .sidebar,.resizing-panes .document-preview{transition:none!important}
+.conversation{transition:background-color var(--motion-control) var(--motion-ease),box-shadow var(--motion-fast) var(--motion-ease)}
+.conversation.active{box-shadow:inset 2px 0 var(--accent)}
+.tree-node,.tree-row{transition:color var(--motion-control) var(--motion-ease),background-color var(--motion-control) var(--motion-ease),border-color var(--motion-control) var(--motion-ease)}
+.tree-node:hover:not(:disabled){border-color:var(--accent);box-shadow:var(--shadow-sm)}
+.provider-thinking-range{transition:opacity var(--motion-fast) var(--motion-ease)}
+.provider-thinking-range::-webkit-slider-thumb{transition:box-shadow var(--motion-fast) var(--motion-ease)}
+.provider-thinking-range:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 4px var(--accent-soft)}
+.motion-tooltip{position:fixed;z-index:110;pointer-events:none;max-width:min(360px,calc(100vw - 24px));padding:8px 11px;border:1px solid var(--tooltip-line);border-radius:8px;background:var(--tooltip-bg);color:var(--tooltip-text);box-shadow:var(--shadow-sm);white-space:pre-line;overflow-wrap:anywhere;font-size:calc(11px * var(--font-scale,1));line-height:1.6}
+.motion-breathe,.thinking i{animation:motion-breathe 2.4s var(--motion-ease) infinite}
+.thinking i:nth-child(2){animation-delay:.2s}.thinking i:nth-child(3){animation-delay:.4s}
+.spin{animation:motion-spin 1.6s linear infinite}
+.app-boot .boot-content>div{animation:motion-breathe 2.4s var(--motion-ease) infinite}
+.request-status[data-phase=continuing]>.spin{animation-duration:2s}
+.request-status[data-phase=stopping]>*{animation:none!important}
+.request-status:not(.working) svg{animation:none!important}
+@keyframes motion-breathe{0%,100%{opacity:.9}50%{opacity:.55}}
+@keyframes motion-spin{to{transform:rotate(360deg)}}
+.source-entry{transition:border-color var(--motion-control) var(--motion-ease),box-shadow var(--motion-fast) var(--motion-ease),background-color var(--motion-normal) var(--motion-ease)}
+.drop-overlay{transition:background-color var(--motion-normal) var(--motion-ease),opacity var(--motion-normal) var(--motion-ease)}
+.usage-bar-total{transform-origin:left center;transition:transform var(--motion-data) var(--motion-ease),background-color var(--motion-normal) var(--motion-ease)}
+.motion-data-static .usage-bar-total{transition:none}
+.chat-view[style*="display: none"] :is(.spin,.motion-breathe,.thinking i),html[data-motion-hidden=true] :is(.spin,.motion-breathe,.thinking i,.boot-content>div){animation-play-state:paused!important}
+
+.motion-tree-move{transition:transform var(--motion-slow) var(--motion-ease)}
+.motion-tree-enter-active,.motion-tree-leave-active,.motion-source-enter-active,.motion-source-leave-active{transition:opacity var(--motion-normal) var(--motion-ease),transform var(--motion-normal) var(--motion-ease)}
+.motion-tree-enter-from,.motion-tree-leave-to,.motion-source-enter-from,.motion-source-leave-to{opacity:0;transform:translateY(4px)}
+.motion-source-leave-active{position:absolute;pointer-events:none}
+.source-grid{position:relative}
+.motion-source-static .source-entry{transition:none}
+@property --thinking-progress{syntax:'<percentage>';inherits:true;initial-value:0%}
+html[data-color-theme] .provider-thinking-range{transition:--thinking-progress var(--motion-fast) var(--motion-ease),background-color var(--motion-normal) var(--motion-ease),opacity var(--motion-fast) var(--motion-ease)}
+
+.motion-tooltip{max-height:min(280px,calc(100dvh - 24px));overflow:hidden}
+.chat-view[data-motion-stopped=true] .message .thinking i{animation:none!important}
+
+.conversation:has(.conversation-link:disabled):not(.active):hover{background:transparent}
+
+@media(prefers-reduced-motion:reduce){*,*::before,*::after,html[data-color-theme] *,html[data-color-theme] *::before,html[data-color-theme] *::after{animation:none!important;transition-duration:0s!important;scroll-behavior:auto!important}button:active:not(:disabled){transform:none}}
+
+.spin,.motion-breathe,.thinking i,.boot-content>div{animation-play-state:var(--motion-loop-state,running)}
+.usage-card strong{font-variant-numeric:tabular-nums}
+.toast-move{transition:transform var(--motion-normal) var(--motion-ease)}
+
+/* Active motion outranks shared theme/control transitions; theme colors still use their existing tokens. */
+html[data-color-theme] :is(.motion-provider-enter-active,.motion-provider-leave-active,.motion-dropdown-enter-active,.motion-dropdown-leave-active,.motion-source-enter-active,.motion-source-leave-active,.motion-tree-enter-active,.motion-tree-leave-active,.motion-list-enter-active,.motion-list-leave-active){transition:opacity var(--motion-normal) var(--motion-ease),transform var(--motion-normal) var(--motion-ease),background-color var(--motion-normal) var(--motion-ease),color var(--motion-normal) var(--motion-ease),border-color var(--motion-normal) var(--motion-ease),box-shadow var(--motion-normal) var(--motion-ease)}
+html[data-color-theme] :is(.motion-panel-enter-active,.motion-panel-leave-active){transition:opacity var(--motion-slow) var(--motion-ease),transform var(--motion-slow) var(--motion-ease),background-color var(--motion-normal) var(--motion-ease),color var(--motion-normal) var(--motion-ease),border-color var(--motion-normal) var(--motion-ease)}
+html[data-color-theme] :is(.motion-modal-enter-active,.motion-modal-leave-active) :is(.modal-surface,.api-settings,.api-confirm){transition:transform var(--motion-normal) var(--motion-ease),background-color var(--motion-normal) var(--motion-ease),color var(--motion-normal) var(--motion-ease),border-color var(--motion-normal) var(--motion-ease)}

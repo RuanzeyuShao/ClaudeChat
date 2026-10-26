@@ -1,0 +1,8 @@
+:root {
+  --motion-fast: 120ms;
+  --motion-normal: 180ms;
+  --motion-slow: 260ms;
+  --motion-data: 450ms;
+  --motion-minimap: 150ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+}

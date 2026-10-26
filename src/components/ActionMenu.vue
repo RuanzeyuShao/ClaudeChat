@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, ref } from 'vue'
+import MotionTransition from '../motion/MotionTransition.vue'
+import { nextTick, onMounted, onUnmounted, ref, useId } from 'vue'
 import { MoreHorizontal } from '@lucide/vue'
 defineProps<{ label?: string }>()
+const triggerId=`menu-trigger-${useId()}`
 const open = ref(false), root = ref<HTMLElement>(), popup = ref<HTMLElement>(), trigger = ref<HTMLButtonElement>()
 const position = ref({ left: '0px', top: '0px', maxHeight: '400px' })
 async function toggle() {
@@ -13,7 +15,7 @@ async function toggle() {
   position.value = { left: `${Math.max(8, Math.min(r.right - 224, window.innerWidth - 232))}px`, top: `${top}px`, maxHeight: `${window.innerHeight - top - 8}px` }
   popup.value?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
 }
-function close() { open.value = false }
+function close(restore:unknown=false) { const active=document.activeElement;const returnFocus=restore===true && (!active || active===document.body || popup.value?.contains(active));open.value=false;if(returnFocus)trigger.value?.focus({preventScroll:true}) }
 defineExpose({ show: () => { if (!open.value) void toggle() } })
 function outside(event: PointerEvent) { if (!root.value?.contains(event.target as Node) && !popup.value?.contains(event.target as Node)) close() }
 function keyboard(event: KeyboardEvent) {
@@ -30,4 +32,4 @@ function keyboard(event: KeyboardEvent) {
 onMounted(() => { document.addEventListener('pointerdown', outside); document.addEventListener('keydown', keyboard, true); window.addEventListener('resize', close) })
 onUnmounted(() => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', keyboard, true); window.removeEventListener('resize', close) })
 </script>
-<template><span ref="root" class="action-menu"><button ref="trigger" class="icon-button" :aria-label="label || '更多操作'" :title="label || '更多操作'" :aria-expanded="open" aria-haspopup="menu" @click.stop="toggle"><slot name="trigger"><MoreHorizontal :size="18"/></slot></button><Teleport to="body"><div v-if="open" ref="popup" role="menu" :aria-label="label || '更多操作'" class="menu-popover" :style="position" @click="close"><slot/></div></Teleport></span></template>
+<template><span ref="root" class="action-menu"><button ref="trigger" :id="triggerId" class="icon-button" :aria-label="label || '更多操作'" :title="label || '更多操作'" :aria-expanded="open" aria-haspopup="menu" @click.stop="toggle"><slot name="trigger"><MoreHorizontal :size="18"/></slot></button><Teleport to="body"><MotionTransition name="motion-dropdown"><div v-if="open" ref="popup" :data-motion-opener="triggerId" role="menu" :aria-label="label || '更多操作'" class="menu-popover" :style="position" @click="close(true)"><slot/></div></MotionTransition></Teleport></span></template>

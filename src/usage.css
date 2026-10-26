@@ -20,7 +20,7 @@
 .usage-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; margin-bottom:18px; }
 .usage-presets { display:inline-flex; flex-wrap:wrap; gap:3px; min-width:0; max-width:100%; padding:4px; background:var(--u-card); border:1px solid var(--u-border); border-radius:10px; }
 .usage-presets button,.usage-ghost { border:0; background:transparent; color:var(--u-muted); border-radius:6px; padding:7px 10px; font-size: calc(11px * var(--font-scale, 1)); cursor:pointer; white-space:nowrap; }
-.usage-presets button:hover,.usage-ghost:hover { color:var(--u-text); background:var(--soft); }
+.usage-presets button:hover:not(:disabled),.usage-ghost:hover:not(:disabled) { color:var(--u-text); background:var(--soft); }
 .usage-presets button.active { color:var(--u-accent); background:var(--u-accent-soft); }
 .usage-dates { display:flex; flex-wrap:wrap; gap:8px; min-width:0; max-width:100%; align-items:center; }
 .usage-dates label { flex:1; min-width:0; color:var(--u-muted); font-size: calc(11px * var(--font-scale, 1)); }
@@ -52,14 +52,14 @@
 .usage-comparisons { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); gap:16px; }
 .usage-bar-card { min-height:180px; }.usage-bar-card h3 { margin:0 0 16px; font-size: calc(13px * var(--font-scale, 1)); font-weight:600; }
 .usage-bar-row { display:grid; grid-template-columns:minmax(0,32%) minmax(0,1fr) minmax(0,auto); align-items:center; gap:8px; width:100%; min-width:0; border:0; background:none; padding:8px 0; text-align:left; font-size: calc(11px * var(--font-scale, 1)); }
-.usage-bar-row:hover .usage-bar-track { outline:1px solid var(--u-accent); }
+.usage-bar-row:hover:not(:disabled) .usage-bar-track { outline:1px solid var(--u-accent); }
 .usage-bar-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--u-muted); }.usage-bar-row strong { max-width:100px; text-align:right; font-size: calc(10px * var(--font-scale, 1)); font-weight:500; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
 .usage-bar-track { display:block; height:12px; min-width:0; border-radius:4px; background:var(--u-bg); overflow:hidden; }.usage-bar-total { display:flex; height:100%; min-width:2px; overflow:hidden; border-radius:4px; }
 .usage-bar-input { display:block; height:100%; background:var(--u-accent); }.usage-bar-output { display:block; height:100%; background:var(--u-blue); }.usage-bar-cost { display:block; height:100%; width:100%; background:var(--u-accent); }
 .usage-table-wrap { width:100%; max-width:100%; min-width:0; overflow-x:auto; overscroll-behavior-x:contain; margin-top:14px; border:1px solid var(--u-border); border-radius:8px; }
 .usage-records table { width:100%; min-width:1020px; table-layout:fixed; border-collapse:collapse; font-size: calc(11px * var(--font-scale, 1)); white-space:nowrap; }.usage-records th { color:var(--u-muted); font-weight:500; background:var(--soft); text-align:left; }
 .usage-records th,.usage-records td { padding:11px 10px; border-bottom:1px solid var(--u-border); overflow:hidden; text-overflow:ellipsis; }.usage-records th:first-child { width:150px; }.usage-records th:nth-child(2) { width:150px; }.usage-records th:nth-child(4) { width:150px; }
-.usage-records tbody tr:not(:has(.usage-empty)) { cursor:pointer; }.usage-records tbody tr:hover { background:var(--u-bg); }.usage-records tbody tr:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+.usage-records tbody tr:not(:has(.usage-empty)) { cursor:pointer; }.usage-records tbody tr:hover:not(:disabled) { background:var(--u-bg); }.usage-records tbody tr:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
 .usage-pagination { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:8px; margin-top:14px; color:var(--u-muted); font-size: calc(11px * var(--font-scale, 1)); }.usage-pagination button { background:var(--u-card); border:1px solid var(--u-border); border-radius:7px; padding:6px 10px; }
 .usage-row-origin { display:block; font-size: calc(9px * var(--font-scale, 1)); color:var(--u-muted); margin-top:3px; }.usage-id { font-size: calc(10px * var(--font-scale, 1)); }
 @container(max-width:480px) { .usage-toolbar { padding:10px 16px; }.usage-live { display:none; }.usage-chart-card { padding:16px 12px; }.usage-heading { margin-bottom:20px; }.usage-selects { grid-template-columns:1fr; } }

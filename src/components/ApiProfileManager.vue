@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import MotionTransition from '../motion/MotionTransition.vue'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { api } from '../services/tauri'
 import { useUiStore } from '../stores/ui'
@@ -141,7 +142,7 @@ onMounted(async()=>{
    </div>
    <footer class="api-editor-footer"><div class="api-editor-actions"><button v-if="selected" :disabled="blocked" @click="duplicate">复制配置</button><button v-if="selected" class="api-danger" :disabled="blocked" @click="deleteOpen=true">删除</button></div><div><button class="api-secondary" :disabled="blocked || (selected!=='' && !dirty)" @click="save(false)">{{ operation==='save'?'保存中…':'保存配置' }}</button><button class="api-primary" :disabled="blocked || !ready || (current && !dirty)" @click="selected && !dirty ? activate() : save(true)">{{ current && !dirty?'当前使用中':selected && !dirty?'启用此配置':'保存并启用' }}</button></div></footer>
   </section>
-  <div v-if="discardOpen" class="api-confirm-backdrop"><section class="api-confirm" role="alertdialog" aria-modal="true" aria-labelledby="api-discard-title"><h3 id="api-discard-title">有未保存的修改</h3><p>离开后，当前编辑内容和新输入的密钥将被放弃。</p><footer><button class="api-secondary" @click="cancelDiscard">继续编辑</button><button class="api-primary" @click="discard">放弃修改并继续</button></footer></section></div>
-  <div v-if="deleteOpen" class="api-confirm-backdrop"><section class="api-confirm" role="alertdialog" aria-modal="true" aria-labelledby="api-delete-title"><h3 id="api-delete-title">删除“{{ draft.name }}”？</h3><p>将删除此配置及其系统密钥，聊天记录和历史用量会保留。{{ current?'当前 API 会停用，请重新选择其他配置。':'' }}</p><p v-if="chat.presets.some(p=>p.profileId===selected)" class="api-help">使用此配置的 Prompt 预设需要重新选择 API。</p><footer><button class="api-secondary" :disabled="busy" @click="deleteOpen=false">取消</button><button class="api-delete-button" :disabled="busy" @click="remove">{{ operation==='delete'?'删除中…':'确认删除配置' }}</button></footer></section></div>
+  <MotionTransition name="motion-modal"><div v-if="discardOpen" class="api-confirm-backdrop"><section class="api-confirm" role="alertdialog" aria-modal="true" aria-labelledby="api-discard-title"><h3 id="api-discard-title">有未保存的修改</h3><p>离开后，当前编辑内容和新输入的密钥将被放弃。</p><footer><button class="api-secondary" @click="cancelDiscard">继续编辑</button><button class="api-primary" @click="discard">放弃修改并继续</button></footer></section></div></MotionTransition>
+  <MotionTransition name="motion-modal"><div v-if="deleteOpen" class="api-confirm-backdrop"><section class="api-confirm" role="alertdialog" aria-modal="true" aria-labelledby="api-delete-title"><h3 id="api-delete-title">删除“{{ draft.name }}”？</h3><p>将删除此配置及其系统密钥，聊天记录和历史用量会保留。{{ current?'当前 API 会停用，请重新选择其他配置。':'' }}</p><p v-if="chat.presets.some(p=>p.profileId===selected)" class="api-help">使用此配置的 Prompt 预设需要重新选择 API。</p><footer><button class="api-secondary" :disabled="busy" @click="deleteOpen=false">取消</button><button class="api-delete-button" :disabled="busy" @click="remove">{{ operation==='delete'?'删除中…':'确认删除配置' }}</button></footer></section></div></MotionTransition>
  </div>
 </template>

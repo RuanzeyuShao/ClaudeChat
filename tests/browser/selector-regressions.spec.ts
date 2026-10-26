@@ -20,7 +20,7 @@ test('expanding services preserves the sidebar width and horizontal position of 
   for(let i=0;i<4;i++){await page.getByRole('button',{name:'折叠或展开聊天服务'}).click();expect(await geometry()).toEqual(baseline)}
  }
  await page.getByRole('button',{name:'折叠侧边栏',exact:true}).click();await expect(page.locator('.sidebar')).toHaveCSS('width','68px')
- await page.getByRole('button',{name:'展开侧边栏',exact:true}).click();expect((await geometry())['.sidebar'].width).toBe(264)
+ await page.getByRole('button',{name:'展开侧边栏',exact:true}).click();await expect(page.locator('.sidebar')).toHaveCSS('width','264px');expect((await geometry())['.sidebar'].width).toBe(264)
 })
 
 test('selecting a model collapses only its list, then Apply commits the connection or preserves it on failure',async({page})=>{

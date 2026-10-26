@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import {animate,cancelMotion,scrollBehavior} from '../motion/runtime'
+import { computed, nextTick, onBeforeUnmount, onUnmounted, ref, watch } from 'vue'
 import type { Attachment } from '../types'
 import { api } from '../services/tauri'
 import { renderMarkdown } from '../utils/markdown'
@@ -27,8 +28,11 @@ const isImage=computed(()=>props.attachment.kind==='image')
 const matches=computed(()=>{if(!search.value)return [];const term=search.value.toLowerCase();return (props.attachment.text || '').split('\n').flatMap((line,index)=>line.toLowerCase().includes(term)?[index]:[])})
 const highlightedLines=computed(()=>(props.attachment.text || '').split('\n').map(line=>hljs.highlight(line,{language:language.value}).value))
 const proposedLines=computed(()=>props.proposed===undefined?[]:codeDiff(props.attachment.text || '',props.proposed))
+let diffMotionRevision=0
+watch(sideBySide,async()=>{const node=codeRoot.value;if(!node)return;const revision=++diffMotionRevision,attachmentId=props.attachment.id,top=node.scrollTop,left=node.scrollLeft;await nextTick();if(revision!==diffMotionRevision || attachmentId!==props.attachment.id || codeRoot.value!==node)return;node.scrollTop=top;node.scrollLeft=left;animate(node,[{opacity:.85},{opacity:1}],'fast')})
+onBeforeUnmount(()=>{diffMotionRevision++;if(codeRoot.value)cancelMotion(codeRoot.value)})
 watch(search,()=>matchIndex.value=0)
-async function findNext(delta:number){if(!matches.value.length)return;matchIndex.value=(matchIndex.value+delta+matches.value.length)%matches.value.length;await nextTick();codeRoot.value?.querySelector('[data-line="'+matches.value[matchIndex.value]+'"]')?.scrollIntoView({block:'center',behavior:'smooth'})}
+async function findNext(delta:number){if(!matches.value.length)return;matchIndex.value=(matchIndex.value+delta+matches.value.length)%matches.value.length;await nextTick();codeRoot.value?.querySelector('[data-line="'+matches.value[matchIndex.value]+'"]')?.scrollIntoView({block:'center',behavior:scrollBehavior()})}
 async function copyCode(){try{await navigator.clipboard.writeText(props.proposed ?? props.attachment.text ?? '');ui.notify('内容已复制')}catch(e){ui.failure(e)}}
 async function saveProposal(overwrite=false){
  if(props.proposed===undefined || !api.isTauri || saving.value)return

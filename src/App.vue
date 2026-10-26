@@ -6,6 +6,9 @@ import ChatView from './views/ChatView.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 import FeedbackHost from './components/FeedbackHost.vue'
 import { useUiStore } from './stores/ui'
+import MotionTooltip from './motion/MotionTooltip.vue'
+import MotionTransition from './motion/MotionTransition.vue'
+import {motionManager} from './motion/runtime'
 import { useChatStore } from './stores/chat'
 
 const chat = useChatStore()
@@ -48,7 +51,7 @@ function keyboard(event: KeyboardEvent) {
   if(key==='l'){event.preventDefault();void closeUsage()}
 }
 onMounted(() => { window.addEventListener('resize', onWindowResize); window.addEventListener('keydown',keyboard); void initialize() })
-onUnmounted(() => {window.removeEventListener('resize', onWindowResize);window.removeEventListener('keydown',keyboard);chat.dispose()})
+onUnmounted(() => {window.removeEventListener('resize', onWindowResize);window.removeEventListener('keydown',keyboard);chat.dispose();motionManager.stop()})
 </script>
 
 <template>
@@ -59,7 +62,8 @@ onUnmounted(() => {window.removeEventListener('resize', onWindowResize);window.r
     <PaneResizeHandle v-if="!sidebarCollapsed" label="调整侧边栏宽度" @resize="resizeSidebar" @reset="preferredSidebarWidth=264" />
     <ChatView :active="page==='chat'" @open-settings="openSettings" />
     <UsageDashboard v-if="usageVisited" v-show="page==='usage'" :active="page==='usage'" @close="closeUsage" />
-    <SettingsPanel v-if="showSettings" :initial-provider="settingsProvider" :initial-profile-id="settingsProfileId" @close="showSettings = false" />
+    <MotionTransition name="motion-modal"><SettingsPanel v-if="showSettings" :initial-provider="settingsProvider" :initial-profile-id="settingsProfileId" @close="showSettings = false" /></MotionTransition>
     <FeedbackHost/>
+    <MotionTooltip/>
   </main>
 </template>
