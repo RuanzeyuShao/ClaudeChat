@@ -1,0 +1,2 @@
+v0.1.6 metadata drafts, cached images, isolated context, incomplete search fallback and permanent turn deletion: passed
+Native recovery, per-call usage, same-node manual continuation, live checkpoint, process exit and restart resume: passed

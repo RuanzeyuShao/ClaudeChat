@@ -1,0 +1,122 @@
+   Compiling claude-chat v0.1.6 (D:\claude-chat\src-tauri)
+warning: function `stream` is never used
+   --> src\claude.rs:138:14
+    |
+138 | pub async fn stream(
+    |              ^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `claude-chat` (bin "claude-chat" test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 06s
+     Running unittests src\main.rs (src-tauri\target-v014\debug\deps\claude_chat-fccdb95a577534ff.exe)
+
+running 105 tests
+test commands::experience_tests::automatic_search_requires_intent_not_punctuation ... ok
+test claude::tests::image_messages_keep_multimodal_blocks ... ok
+test commands::experience_tests::frontend_extension_keys_are_accepted_by_native_commands ... ok
+test commands::experience_tests::historical_attachment_filter_keeps_current_turn_images_and_documents ... ok
+test commands::experience_tests::extension_namespace_preserves_v3_and_limits_v4_and_v5 ... ok
+test claude::tests::duplicate_urls_keep_distinct_citations_and_stable_order ... ok
+test claude::tests::limits_document_context_without_losing_user_question ... ok
+test database::tests::usage_migration_preserves_records ... ok
+test database::title_tests::delayed_titles_cannot_overwrite_manual_names_or_resurrect_deleted_conversations ... ok
+test database::title_tests::claims_only_the_first_user_turn_and_preserves_manual_names ... ok
+test database::title_tests::title_usage_is_separate_and_committed_with_the_title ... ok
+test database::title_tests::failed_or_deleted_first_turn_is_not_claimed_again_after_reopen ... ok
+test database::v3_tests::api_activation_updates_connection_and_model_together ... ok
+test commands::selector_tests::model_catalog_uses_custom_endpoint_and_preserves_ids ... ok
+test database::v3_tests::credential_failure_does_not_modify_profile ... ok
+test database::v3_tests::appearance_save_is_atomic_validated_and_keeps_existing_settings ... ok
+test database::v3_tests::deleting_active_profile_clears_connections_but_keeps_history ... ok
+test database::v3_tests::connection_failure_rolls_back_global_conversation_snapshot_and_reply_identity ... ok
+test database::v3_tests::failed_migration_rolls_back_schema_and_version ... ok
+test database::v3_tests::failed_delete_restores_secret_and_model_prices ... ok
+test database::v3_tests::a_long_partial_answer_and_its_original_model_usage_survive_database_reopen ... ok
+test database::v3_tests::foreign_reasoning_is_filtered_only_from_request_copies_not_saved_messages ... ok
+test database::v3_tests::frontend_palettes_match_native_validation_and_unknown_legacy_palette_falls_back ... ok
+test commands::experience_tests::selected_history_and_new_attachments_reach_both_provider_protocols ... ok
+test database::v3_tests::generation_guard_blocks_switch_but_allows_appearance_changes_and_releases_on_failure ... ok
+test database::v3_tests::checkpoints_resume_one_node_preserve_tree_and_reopen_with_separate_usage ... ok
+test database::v3_tests::profile_blank_key_preserves_secret_and_runtime_model ... ok
+test database::v3_tests::profile_draft_is_saved_without_switching_or_requiring_a_secret ... ok
+test database::v3_tests::preset_settings_and_prompt_restore_together_and_rollback_on_failure ... ok
+test database::v3_tests::profile_failed_database_save_restores_secret_and_options ... ok
+test database::v3_tests::references_and_extension_data_survive_branch_switch ... ok
+test database::v3_tests::search_failure_trace_survives_reload_without_changing_references_or_usage ... ok
+test database::v3_tests::eight_palette_modes_restore_across_history_selection_and_database_reopen ... ok
+test database::v3_tests::regenerating_and_editing_preserve_branches_and_attachments ... ok
+test database::v3_tests::upgrade_preserves_all_legacy_data_and_is_repeatable ... ok
+test database::v3_tests::search_mode_and_flag_restore_together_and_snapshots_never_store_api_keys ... ok
+test database::v3_tests::response_and_usage_commit_atomically ... ok
+test database::v3_tests::restoring_legacy_history_keeps_complete_last_connection_and_all_six_providers ... ok
+test database::v3_tests::v015_preferences_survive_database_reopen_and_preserve_legacy_history ... ok
+test database::v6_tests::checkpoints_upsert_only_the_current_origin_row_and_rollback_together ... ok
+test database::v6_tests::bulk_message_loading_retains_branch_metadata_and_search_escapes_wildcards ... ok
+test database::v6_tests::context_selections_are_isolated_and_survive_settings_restore ... ok
+test database::v6_tests::deletion_and_maintenance_remove_auxiliary_data_and_keep_historical_bills ... ok
+test database::v6_tests::deleting_turn_removes_its_descendants_and_attachments_but_preserves_usage ... ok
+test files::citation_export_tests::exports_native_citation_numbers_with_actual_sources_without_altering_stored_content ... ok
+test files::copy_tests::saving_a_copy_never_overwrites_a_file ... ok
+test database::v6_tests::v3_upgrade_migrates_origin_maps_and_base64_drafts_once ... ok
+test files::tests::docx_preview_keeps_embedded_images ... ok
+test database::v6_tests::failed_clear_restores_profile_and_legacy_credentials_and_database_rows ... ok
+test files::tests::parses_code_as_first_class_attachment ... ok
+test files::tests::parses_markdown_as_document_context ... ok
+test files::tests::bundles_local_markdown_images ... ok
+test database::v6_tests::drafts_are_bounded_metadata_and_hydrate_cached_files_without_rewriting_other_conversations ... ok
+test database::v3_tests::model_switch_roundtrip_routes_http_and_preserves_tree_attachments_usage_and_restart ... ok
+test generation::recovery_tests::a_replayed_segment_stops_as_no_progress_and_never_leaks_duplicate_deltas ... ok
+test generation::recovery_tests::a_negotiated_legacy_budget_is_reused_for_later_segments ... ok
+test database::v6_tests::stable_application_directory_migrates_legacy_database_without_overwriting_new_data ... ok
+test generation::recovery_tests::model_budget_caps_are_explicit_and_thinking_always_fits ... ok
+test generation::recovery_tests::source_context_is_bounded_and_aliases_are_not_renumbered ... ok
+test generation::recovery_tests::a_normal_finish_is_not_retried_even_without_done_or_final_punctuation ... ok
+test generation::recovery_tests::default_configuration_stops_after_one_continuation_and_disables_automatic_recovery ... ok
+test generation::recovery_tests::stop_during_backoff_cancels_without_a_second_request ... ok
+test generation::recovery_tests::context_safety_quota_and_credentials_are_never_automatically_retried ... ok
+test generation::tests::cancellation_between_segments_prevents_another_request ... ok
+test generation::tests::context_limit_and_filter_endings_are_not_automatically_retried ... ok
+test generation::tests::continuation_is_bounded_and_zero_output_does_not_loop ... ok
+test generation::tests::explicit_output_limits_survive_continuation ... ok
+test generation::recovery_tests::kimi_tool_results_and_each_api_call_survive_a_gateway_failure_without_searching_again ... ok
+test generation::tests::legacy_output_limit_fallback_preserves_other_profile_options ... ok
+test generation::recovery_tests::stream_safety_refusal_is_never_recovered_and_an_overload_is ... ok
+test generation::tests::native_citations_remain_unique_across_continuations_and_publish_live_sources ... ok
+test generation::tests::openai_annotations_keep_exact_unicode_answer_spans_and_explicit_aliases ... ok
+test generation::recovery_tests::unexpected_eof_and_real_transport_drop_resume_with_sources_and_exact_overlap ... ok
+test generation::tests::output_limit_continues_one_answer_for_all_seven_providers_and_sums_usage ... ok
+test generation::tests::transport_failure_after_text_keeps_content_instead_of_dropping_it ... ok
+test generation::tests::unicode_overlap_is_not_duplicated_in_stored_or_streamed_content ... ok
+test links::tests::accepts_only_web_links ... ok
+test links::tests::remote_preview_never_has_application_ipc_access ... ok
+test media::tests::excludes_private_networks ... ok
+test media::tests::follows_redirects_and_reports_missing_or_html_images ... ok
+test media::tests::refuses_private_sources_before_request ... ok
+test media::tests::validates_raster_signatures ... ok
+test openai::grok_tests::grok_stream_preserves_reply_and_reported_usage ... ok
+test openai::tests::api_stream_errors_are_not_saved_as_success ... ok
+test openai::tests::kimi_search_roundtrip_echoes_arguments_and_sums_usage ... ok
+test openai::tests::streaming_preserves_unicode_reasoning_and_usage ... ok
+test provider::probe_tests::capabilities_use_response_evidence_and_model_metadata ... ok
+test provider::tests::custom_routes_remain_custom ... ok
+test provider::tests::policies_are_explicit ... ok
+test generation::tests::terminal_events_finish_without_waiting_for_the_http_connection_to_close ... ok
+test search::tests::search_status_requires_execution_and_distinguishes_empty_and_failed ... ok
+test search::tests::searxng_success_and_empty_results_are_not_errors ... ok
+test sse::tests::final_event_without_blank_line ... ok
+test sse::tests::fragmented_unicode_crlf_and_multiline ... ok
+test storage_tests::explicit_storage_override_requires_an_absolute_path_and_has_no_implicit_fallback ... ok
+test titles::tests::all_protocols_make_one_bounded_non_search_request ... ok
+test titles::tests::failure_does_not_retry ... ok
+test titles::tests::normalizes_only_the_model_result ... ok
+test files::tests::exports_chinese_pdf ... ok
+test generation::recovery_tests::an_explicit_finish_without_done_does_not_wait_for_a_hanging_gateway ... ok
+test search::tests::cancellation_interrupts_waiting_for_headers_and_body ... ok
+test generation::tests::malformed_final_event_does_not_erase_previous_valid_output ... ok
+test generation::tests::a_failed_continuation_preserves_the_previous_complete_segment ... ok
+test generation::recovery_tests::transient_http_errors_retry_at_most_three_times_and_record_every_call ... ok
+test generation::tests::interrupted_stream_keeps_partial_text_reasoning_sources_and_reported_tokens ... ok
+
+test result: ok. 105 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 27.15s
+

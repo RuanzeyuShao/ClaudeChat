@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "executable": "src-tauri/target-v014/release/claude-chat.exe",
+  "isolatedDatabase": true,
+  "deviceScaleEmulation": [
+    {
+      "deviceScaleFactor": 1,
+      "viewport": "1100×800",
+      "overflow": false,
+      "closeIconMaxOffset": 0
+    },
+    {
+      "deviceScaleFactor": 1.25,
+      "viewport": "1100×800",
+      "overflow": false,
+      "closeIconMaxOffset": 0
+    },
+    {
+      "deviceScaleFactor": 1.5,
+      "viewport": "1100×800",
+      "overflow": false,
+      "closeIconMaxOffset": 0
+    }
+  ],
+  "reducedMotion": true,
+  "modalFocus": true,
+  "settingsUnchanged": true
+}

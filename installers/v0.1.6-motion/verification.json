@@ -1,0 +1,99 @@
+{
+  "version": "0.1.6",
+  "revision": "motion",
+  "sourceCommit": "483fd6fd40be4c344eddbabb536f85c9624ee3a5",
+  "installer": {
+    "file": "ClaudeChat_0.1.6_x64-setup.exe",
+    "bytes": 7065781,
+    "sha256": "7707a03a00acd5412549706d2f2f3bec674dde58ef819aff6c5265f0611821be"
+  },
+  "githubReleaseModified": false,
+  "releaseTagModified": false,
+  "typecheck": {
+    "passed": true,
+    "command": "npm run typecheck"
+  },
+  "frontendBuild": {
+    "passed": true,
+    "modules": 2287
+  },
+  "unitTests": {
+    "passed": 110,
+    "failed": 0,
+    "files": 15
+  },
+  "rustTests": {
+    "passed": 105,
+    "failed": 0
+  },
+  "browserTests": {
+    "passed": 124,
+    "failed": 0,
+    "skipped": 0,
+    "flaky": 0,
+    "durationMs": 261872.559,
+    "rawReport": "validation/browser-results.json"
+  },
+  "nativeTests": {
+    "startupRestartAndPalettes": true,
+    "aiTitles": true,
+    "recoveryAndUsage": true,
+    "motion": true,
+    "isolatedSqlite": true,
+    "existingSettingsUnchanged": true
+  },
+  "coverage": {
+    "motionCases": 11,
+    "palettes": 8,
+    "themeModes": [
+      "light",
+      "dark",
+      "system"
+    ],
+    "reducedMotion": [
+      "normal",
+      "reduce"
+    ],
+    "browserDeviceScales": [
+      1,
+      1.25,
+      1.5,
+      2
+    ],
+    "nativeDeviceScaleEmulation": [
+      {
+        "deviceScaleFactor": 1,
+        "viewport": "1100×800",
+        "overflow": false,
+        "closeIconMaxOffset": 0
+      },
+      {
+        "deviceScaleFactor": 1.25,
+        "viewport": "1100×800",
+        "overflow": false,
+        "closeIconMaxOffset": 0
+      },
+      {
+        "deviceScaleFactor": 1.5,
+        "viewport": "1100×800",
+        "overflow": false,
+        "closeIconMaxOffset": 0
+      }
+    ],
+    "realDisplayDpiChanged": false,
+    "continuousGpuOrPowerProfiling": false
+  },
+  "preserved": {
+    "version": true,
+    "dependencies": true,
+    "rustSource": true,
+    "databaseSchema": true,
+    "providerAdapters": true,
+    "usageCalculations": true
+  },
+  "releaseConsistency": {
+    "passed": true,
+    "publishedMaterials": "../v0.1.6"
+  },
+  "report": "../../docs/v0.1.6-motion-report.md"
+}
