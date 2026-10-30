@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { Sparkles, MessageSquare, ChartNoAxesCombined, History, Settings2 } from '@lucide/vue'
 import Sidebar from './components/Sidebar.vue'
 import PaneResizeHandle from './components/PaneResizeHandle.vue'
 import ChatView from './views/ChatView.vue'
@@ -17,6 +18,7 @@ const booting=ref(true),startupFailed=ref(false)
 async function initialize(){booting.value=true;startupFailed.value=false;try{await chat.initialize()}catch(e){chat.dispose();startupFailed.value=true;ui.failure(e)}finally{booting.value=false}}
 const collapsed = ref(localStorage.getItem('claudechat.sidebarCollapsed') === 'true')
 const sidebarCollapsed = computed(() => collapsed.value || viewportWidth.value < 760)
+const searchHistory = () => { page.value='chat';window.dispatchEvent(new Event('chat-search-history')) }
 const toggleSidebar = () => { collapsed.value=!collapsed.value;localStorage.setItem('claudechat.sidebarCollapsed',String(collapsed.value)) }
 import type { ProviderKind } from './types'
 const settingsProvider=ref<ProviderKind>()
@@ -55,7 +57,14 @@ onUnmounted(() => {window.removeEventListener('resize', onWindowResize);window.r
 </script>
 
 <template>
-  <main class="app-shell">
+  <main class="app-shell ui-workbench">
+    <nav class="workspace-rail" aria-label="工作区导航">
+      <div class="rail-brand" aria-label="ClaudeChat"><Sparkles :size="20"/></div>
+      <button class="rail-button" aria-label="打开聊天工作区" title="聊天工作区" :aria-current="page==='chat'?'page':undefined" @click="page='chat'"><MessageSquare :size="19"/></button>
+      <button class="rail-button" aria-label="打开用量工作区" title="用量统计" :aria-current="page==='usage'?'page':undefined" @click="openUsage"><ChartNoAxesCombined :size="19"/></button>
+      <button class="rail-button" aria-label="打开历史搜索" title="历史会话" @click="searchHistory"><History :size="19"/></button>
+      <button class="rail-button rail-settings" aria-label="打开设置面板" title="设置" @click="openSettings()"><Settings2 :size="19"/></button>
+    </nav>
     <div v-if="booting" class="app-boot" role="status" aria-label="正在载入本地会话"><div class="boot-sidebar"/><div class="boot-content"><div/><div/><div/><p>正在载入本地会话…</p></div></div>
     <div v-else-if="startupFailed" class="startup-error" role="alert"><p>本地数据未能载入，请重试。</p><button class="primary" @click="initialize">重新载入</button></div>
     <Sidebar :page="page" :collapsed="sidebarCollapsed" :width="sidebarWidth" @toggle="toggleSidebar" @open-settings="openSettings" @open-usage="openUsage" @open-chat="page = 'chat'" />

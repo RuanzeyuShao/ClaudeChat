@@ -16,7 +16,7 @@ async function seed(page:Page){
 async function assertWidth(page:Page){
  await expect(page.locator('.chat-view')).toBeHidden()
  await expect.poll(()=>page.locator('.sidebar').evaluate(el=>el.getAnimations().filter(a=>a instanceof CSSTransition && a.transitionProperty==='width').length)).toBe(0)
- const shell=await page.locator('.app-shell').boundingBox(),dashboard=await page.locator('.usage-dashboard').boundingBox(),sidebar=await page.locator('.sidebar').boundingBox();expect(dashboard!.width).toBeGreaterThanOrEqual(shell!.width-sidebar!.width-6)
+ const shell=await page.locator('.app-shell').boundingBox(),dashboard=await page.locator('.usage-dashboard').boundingBox(),sidebar=await page.locator('.sidebar').boundingBox();const padding=await page.locator('.app-shell').evaluate(el=>parseFloat(getComputedStyle(el).paddingRight));expect(dashboard!.x).toBeGreaterThanOrEqual(sidebar!.x+sidebar!.width);expect(dashboard!.x+dashboard!.width).toBeCloseTo(shell!.x+shell!.width-padding,0)
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
  expect(await page.locator('.usage-scroll').evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true)
  const invalid=await page.locator('.usage-scroll').evaluate(node=>{

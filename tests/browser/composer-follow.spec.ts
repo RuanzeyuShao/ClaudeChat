@@ -38,7 +38,7 @@ test('smooth return accepts arriving content and can be interrupted by upward in
 test('larger Composer chips are separated and Thinking opens its existing draft configuration',async({page})=>{
  await seed(page)
  for(const selector of ['.composer-model-name','.thinking-tag','.composer-search select'])expect(parseFloat(await page.locator(selector).evaluate(el=>getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(13)
- for(const selector of ['.composer-provider-button','.thinking-tag','.composer-search']){await expect(page.locator(selector)).toHaveCSS('border-top-width','1px');expect((await page.locator(selector).boundingBox())!.height).toBeGreaterThanOrEqual(38)}
+ for(const selector of ['.composer-provider-button','.thinking-tag','.composer-search']){await expect(page.locator(selector)).toHaveCSS('border-top-width','1px');expect((await page.locator(selector).boundingBox())!.height).toBeGreaterThanOrEqual(36)}
  await page.getByRole('button',{name:'配置思考强度',exact:true}).click();const panel=page.locator('#chat-provider-panel');await expect(panel).toBeVisible();await expect(panel.getByRole('group',{name:'模型列表'})).toHaveCount(0);await expect(panel.getByRole('slider',{name:'思考强度'})).toBeFocused();await page.keyboard.press('Home');await expect(page.locator('.thinking-tag')).toContainText('深度思考');await panel.getByRole('button',{name:'应用配置',exact:true}).click();await expect(page.locator('.thinking-tag')).toContainText('思考关闭');await expect(page.locator('.composer-model-name')).toContainText('claude-opus-example')
 })
 

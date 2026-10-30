@@ -20,3 +20,5 @@ import './provider-selector.css'
 import './api-settings.css'
 
 import './motion/motion.css'
+
+import './workbench.css'
