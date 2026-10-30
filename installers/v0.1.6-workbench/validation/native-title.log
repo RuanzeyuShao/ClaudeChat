@@ -1,0 +1,1 @@
+Native AI titles passed: one call per first send, nonblocking reply, persisted restart, regenerate/follow-up exclusion, manual rename, failure without retry, attachment context, separate usage and deletion race.
