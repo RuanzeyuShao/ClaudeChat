@@ -1,0 +1,17 @@
+
+> claude-chat@0.1.6 test
+> vitest run
+
+
+ RUN  v5.0.3 D:/claude-chat
+
+
+ Test Files  15 passed (15)
+      Tests  110 passed (110)
+   Start at  15:38:29
+   Duration  8.36s (environment 57%, import 15%, tests 14%, transform 14%)
+
+Environment  jsdom was created 15 times · 28.55s total, 57% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
