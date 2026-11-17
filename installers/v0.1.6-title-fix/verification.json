@@ -1,0 +1,36 @@
+{
+  "version": "0.1.6",
+  "sourceCommit": "1e88297ae03de637d5e5e2ca959b6a83ccc11c69",
+  "installerSha256": "68793e3dc45508a25af465bdb1268d42de72a1909c343bc88d4c6b45d56e5dad",
+  "rustTests": {
+    "passed": 109,
+    "failed": 0
+  },
+  "frontendUnitTests": {
+    "passed": 110,
+    "failed": 0
+  },
+  "typecheck": true,
+  "frontendBuild": true,
+  "windowsNsisBuild": true,
+  "nativeFixtureTests": [
+    "glm-5.2 / zhipu",
+    "glm-5.2 / openai-compatible",
+    "non-GLM / openai-compatible"
+  ],
+  "nativeChecks": [
+    "one attempt per first send",
+    "title after 16-second delayed response",
+    "nonblocking main answer",
+    "restart persistence",
+    "no repeat for followups or regeneration",
+    "manual rename precedence",
+    "no retry on errors",
+    "attachment input",
+    "separate usage",
+    "deletion race"
+  ],
+  "realProviderKeysUsed": false,
+  "userDatabaseModified": false,
+  "report": "../../docs/v0.1.6-title-fix-report.md"
+}

@@ -1,0 +1,12 @@
+{
+  "product": "ClaudeChat",
+  "version": "0.1.6",
+  "revision": "2026-11-17-glm52-titles",
+  "platform": "windows-x64",
+  "installer": "ClaudeChat_0.1.6_x64-setup.exe",
+  "bytes": 7073715,
+  "sha256": "68793e3dc45508a25af465bdb1268d42de72a1909c343bc88d4c6b45d56e5dad",
+  "builtAt": "2026-11-17T02:20:32.568Z",
+  "sourceCommit": "1e88297ae03de637d5e5e2ca959b6a83ccc11c69",
+  "githubReleasePublished": false
+}
