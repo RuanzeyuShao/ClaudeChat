@@ -12,6 +12,7 @@ pub enum ProviderAdapter {
     Moonshot,
     Zhipu,
     Grok,
+    Gemini,
 }
 impl ProviderAdapter {
     pub fn new(kind: &str) -> Result<Self> {
@@ -23,11 +24,20 @@ impl ProviderAdapter {
             "moonshot" => Self::Moonshot,
             "zhipu" => Self::Zhipu,
             "grok" => Self::Grok,
+            "gemini" => Self::Gemini,
             _ => return Err(anyhow!("未知 Provider")),
         })
     }
     pub fn endpoint(self, base: &str) -> String {
         let base = base.trim().trim_end_matches('/');
+        if self==Self::Gemini {
+            // Google AI Studio supports this official OpenAI-compatible route.
+            // Also accept the native API root pasted from Google's documentation.
+            if let Ok(url)=reqwest::Url::parse(base){
+                if url.path().is_empty() || url.path()=="/" {return format!("{base}/v1beta/openai/chat/completions")}
+                if url.path()=="/v1beta" {return format!("{base}/openai/chat/completions")}
+            }
+        }
         if self == Self::Anthropic {
             if base.ends_with("/messages") {
                 base.into()
@@ -50,6 +60,13 @@ impl ProviderAdapter {
     }
     pub fn configure(self, body: &mut Value, thinking: &str) {
         match self {
+            Self::Gemini => {
+                let model=body["model"].as_str().unwrap_or("").to_ascii_lowercase();
+                if !model.contains("gemini-1.") && !model.contains("gemini-2.0") {
+                    let off=if model.contains("gemini-2.5") && !model.contains("pro"){"none"}else{"low"};
+                    body["reasoning_effort"]=json!(if thinking=="off"{off}else{thinking});
+                }
+            }
             Self::DeepSeek | Self::Zhipu => {
                 body["thinking"] = json!({"type":if thinking=="off"{"disabled"}else{"enabled"}});
             }
@@ -104,6 +121,10 @@ impl ProviderAdapter {
             }
         }
         if body.get("max_completion_tokens").is_some(){body.as_object_mut().unwrap().remove("max_tokens");}
+        if self==Self::Gemini && !body["extra_body"]["google"]["thinking_config"].is_null(){
+            if options.get("reasoning_effort").is_some(){return Err(anyhow!("Gemini 不可同时设置 reasoning_effort 和 thinking_config"))}
+            body.as_object_mut().unwrap().remove("reasoning_effort");
+        }
         crate::recovery::output_budget(body,options,self==Self::Anthropic)?;
         if self==Self::OpenAI {if let Some(max)=body.as_object_mut().unwrap().remove("max_tokens"){body["max_completion_tokens"]=max;}}
         Ok(())
@@ -251,6 +272,7 @@ pub async fn detect(
         .timeout(std::time::Duration::from_secs(25))
         .build()?;
     let mut seed = json!({"model":model,"max_tokens":64,"messages":[{"role":"user","content":"Reply with OK."}]});
+    if adapter==ProviderAdapter::Gemini {seed["max_tokens"]=json!(2048);adapter.configure(&mut seed,"off");}
     adapter.configure_options(&mut seed, options)?;
     let mut result = json!({"checkedAt":chrono::Utc::now().to_rfc3339(),"model":model,"baseUrl":base,"provider":kind,"connection":"unknown","streaming":"unknown","thinking":"unknown","vision":"unknown","tool":"unknown","search":"unknown","contextLength":null});
     let response = adapter.request(&client, base, key, &seed).send().await?;
@@ -494,5 +516,46 @@ mod probe_tests {
         assert_eq!(result["search"], "unknown");
         assert_eq!(result["contextLength"], 12345);
         assert_eq!(server.join().unwrap().len(), 7);
+    }
+}
+
+#[cfg(test)]
+mod gemini_tests {
+    use super::*;
+    use std::sync::{Arc,atomic::AtomicBool};
+    fn settings(base:&str)->crate::commands::Settings{serde_json::from_value(json!({"provider":"gemini","apiKey":"fixture-gemini-key","baseUrl":base,"model":"gemini-2.5-flash","thinking":"off","webSearch":false,"theme":"light"})).unwrap()}
+    #[test] fn official_roots_and_proxy_paths(){
+        let a=ProviderAdapter::new("gemini").unwrap();
+        for base in ["https://generativelanguage.googleapis.com","https://generativelanguage.googleapis.com/v1beta","https://generativelanguage.googleapis.com/v1beta/openai/"]{assert_eq!(a.endpoint(base),"https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");}
+        assert_eq!(a.endpoint("https://proxy.test/v1"),"https://proxy.test/v1/chat/completions");
+    }
+    #[test] fn thinking_and_custom_google_options(){
+        let a=ProviderAdapter::Gemini;
+        let mut body=json!({"model":"gemini-2.5-flash"});a.configure(&mut body,"off");assert_eq!(body["reasoning_effort"],"none");
+        body["model"]=json!("gemini-2.5-pro");a.configure(&mut body,"off");assert_eq!(body["reasoning_effort"],"low");
+        a.configure(&mut body,"high");assert_eq!(body["reasoning_effort"],"high");
+        let options=json!({"extra_body":{"google":{"thinking_config":{"thinking_budget":1024}}}});a.configure_options(&mut body,&options).unwrap();assert!(body.get("reasoning_effort").is_none());
+        assert!(a.configure_options(&mut body,&json!({"extra_body":options["extra_body"],"reasoning_effort":"high"})).is_err());
+    }
+    #[tokio::test] async fn catalog_and_non_streaming_title_use_google_routes_and_auth(){
+        let responses=vec![(200,"application/json",json!({"data":[{"id":"gemini-2.5-flash"},{"id":"gemini-2.5-pro"}]}).to_string()),(200,"application/json",json!({"choices":[{"message":{"content":"Gemini 接入测试"}}],"usage":{"prompt_tokens":10,"completion_tokens":6}}).to_string())];
+        let(base,server)=crate::test_http::serve_observed(responses);let base=base.replace("/v1","/v1beta");
+        let catalog=crate::commands::get_provider_models(settings(&base)).await.unwrap();assert_eq!(serde_json::to_value(catalog).unwrap()[0]["id"],"gemini-2.5-flash");
+        let outcome=crate::titles::summarize(&settings(&base),"fixture-gemini-key","测试 Gemini").await;assert_eq!(outcome.title.as_deref(),Some("Gemini 接入测试"));
+        let requests=server.join().unwrap();assert_eq!(requests[0].path,"/v1beta/openai/models");assert_eq!(requests[1].path,"/v1beta/openai/chat/completions");assert_eq!(requests[0].headers["authorization"],"Bearer fixture-gemini-key");assert_eq!(requests[1].body["reasoning_effort"],"none");assert_eq!(requests[1].body["max_tokens"],2048);
+    }
+    #[tokio::test] async fn gemini_connection_probe_uses_a_bounded_non_thinking_request(){
+        let(base,server)=crate::test_http::serve_observed(vec![(200,"application/json","{}".into())]);
+        let result=crate::commands::test_connection(settings(&base)).await.unwrap();assert!(result.ok);
+        let requests=server.join().unwrap();assert_eq!(requests.len(),1);assert_eq!(requests[0].body["max_tokens"],2048);assert_eq!(requests[0].body["reasoning_effort"],"none");
+    }
+    #[tokio::test] async fn streams_images_usage_and_stops_without_extra_requests(){
+        let event=json!({"choices":[{"delta":{"content":"中文 Gemini 回答","reasoning_content":"推理摘要"},"finish_reason":"stop"}],"usage":{"prompt_tokens":17,"completion_tokens":9,"completion_tokens_details":{"reasoning_tokens":3}}});
+        let(base,server)=crate::test_http::serve_observed(vec![(200,"text/event-stream",format!("data: {}\n\ndata: [DONE]\n\n",event))]);
+        let cancelled=Arc::new(AtomicBool::new(false));let image=crate::database::Attachment{id:"image".into(),name:"image.png".into(),mime:"image/png".into(),kind:"image".into(),size:1,text:None,data:Some("aGVsbG8=".into())};
+        let history=vec![crate::database::Message{role:"user".into(),content:"识别图片".into(),attachments:vec![image],..Default::default()}];
+        let answer=crate::openai::stream("gemini".into(),base,"fixture-gemini-key".into(),"gemini-2.5-flash".into(),"high".into(),Value::Null,history,String::new(),false,cancelled,|_|Ok(())).await.unwrap();
+        assert_eq!(answer.0,"中文 Gemini 回答");assert_eq!((answer.2,answer.3,answer.4),(17,9,3));let requests=server.join().unwrap();assert_eq!(requests.len(),1);assert_eq!(requests[0].body["reasoning_effort"],"high");assert_eq!(requests[0].body["messages"][0]["content"][1]["type"],"image_url");assert!(!requests[0].path.contains("key="));
+        let stopped=crate::openai::stream("gemini".into(),"http://127.0.0.1:1/v1beta/openai".into(),"mock".into(),"gemini-2.5-flash".into(),"off".into(),Value::Null,vec![],String::new(),false,Arc::new(AtomicBool::new(true)),|_|Ok(())).await;assert!(stopped.is_ok());
     }
 }

@@ -5,11 +5,15 @@
   <p><a href="https://github.com/RuanzeyuShao/ClaudeChat/releases/download/v0.1.6/ClaudeChat_0.1.6_x64-setup.exe"><strong>下载 Windows x64 · v0.1.6</strong></a> · <a href="https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.6">正式 Release / Assets</a> · <a href="installers/v0.1.6/">校验与构建清单</a> · <a href="docs/v0.1.6-test-report.md">修改清单与验证报告</a></p>
 </div>
 
-支持 Claude、GPT、DeepSeek、Kimi、GLM、Grok 和自定义 OpenAI 兼容 API。需要自备 API Key，调用费用由服务商收取。
+支持 Gemini、Claude、GPT、DeepSeek、Kimi、GLM、Grok 和自定义 OpenAI 兼容 API。需要自备 API Key，调用费用由服务商收取。
 
 默认分支 **main 已包含完整 v0.1.6 源码、测试、发布资料，以及 2026-10-19 的搜索框关闭和设置按钮居中修复**。当前正式安装包也已包含这两项界面修复。
 
 **2026-10-23 更新（仍为 v0.1.6）**：新会话首次发送后由 AI 概括标题，不再截取用户原文。标题在首轮正文结束后后台生成，后续追问、重新生成和重启均不会再次调用；手动改名优先，旧会话保留原有标题。
+
+## v0.1.6 Gemini API 接入
+
+新增独立 Gemini Chat 入口，使用 Google AI Studio API Key 和官方兼容地址 `https://generativelanguage.googleapis.com/v1beta/openai`。支持模型列表、连接测试、流式对话、图片输入、思考档位、Usage、停止与恢复、首轮 AI 标题；联网沿用 SearXNG。[配置与协议说明](docs/v0.1.6-gemini.md)。
 
 ## v0.1.6 GLM-5.2 标题修正（2026-11-17）
 

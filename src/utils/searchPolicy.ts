@@ -11,6 +11,7 @@ export function builtinSearchHelp(kind:ProviderKind):string {
   case 'moonshot':return '当前调用 Kimi 的 $web_search 接口，并非所有 Kimi 模型都支持；新模型可能要求其他搜索接口。不支持时请使用 SearXNG。'
   case 'zhipu':return '当前调用 GLM API 的 web_search 工具；模型、账号和当前 API 地址都须支持。'
   case 'openai-compatible':return '通用 OpenAI 兼容协议没有统一的内置搜索约定，本客户端当前未接入此路径。请使用 SearXNG。'
+  case 'gemini':return 'Gemini 当前通过 Google 官方兼容接口接入；本客户端的联网检索请配置 SearXNG。'
   case 'grok':return '当前 Grok 适配器使用 Chat Completions，尚未接入 Grok 的专用搜索接口。请使用 SearXNG。'
   case 'deepseek':return '当前 DeepSeek API 适配器未接入内置搜索；网页端的联网功能不等于此 API 的能力。请使用 SearXNG。'
  }

@@ -15,7 +15,7 @@ export interface Message { generation?:GenerationInfo; usageId?: string | null; 
 export interface Conversation { id: string; title: string; model: string; createdAt: string; updatedAt: string; messages: Message[]; systemPrompt: string }
 export type ThemeMode = 'system' | 'light' | 'dark'
 export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'
-export type ProviderKind = 'anthropic-compatible' | 'openai-compatible' | 'openai' | 'deepseek' | 'moonshot' | 'zhipu' | 'grok'
+export type ProviderKind = 'anthropic-compatible' | 'openai-compatible' | 'openai' | 'deepseek' | 'moonshot' | 'zhipu' | 'grok' | 'gemini'
 export interface ProviderModel { id: string; name?: string }
 export interface Settings {
   autoContinuations?: number

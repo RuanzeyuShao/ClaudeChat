@@ -184,7 +184,7 @@ export const useChatStore = defineStore('chat', {
       const p=this.profiles.find(x=>x.id===id);if(!p)throw new Error('此 API 配置已不存在，请重新选择')
       if(!p.model.trim())throw new Error('请先为此 API 配置选择默认模型')
       if(!p.hasKey)throw new Error('请先为此 API 配置填写 API Key')
-      const external=['grok','deepseek','openai-compatible'].includes(p.provider)
+      const external=['grok','deepseek','openai-compatible','gemini'].includes(p.provider)
       await this.saveSettings({...this.settings,profileId:p.id,apiKey:'',baseUrl:p.baseUrl,provider:p.provider,model:p.model,thinking:p.thinking,requestOptions:p.requestOptions,searchModel:'',...(external?{searchProvider:'searxng' as const,searchMode:this.settings.searchBaseUrl?'auto' as const:'off' as const,webSearch:!!this.settings.searchBaseUrl}:{})},this.activeId || undefined)
       if(this.active)this.active.model=p.model
     },
@@ -381,7 +381,7 @@ export const useChatStore = defineStore('chat', {
         if(!profile)throw new Error('预设绑定的 API Profile 已删除')
         if(!profile.hasKey)throw new Error('请先为预设绑定的 API 配置填写 API Key')
         settings={...settings,profileId:profile.id,baseUrl:profile.baseUrl,provider:profile.provider,model:profile.model,thinking:profile.thinking,requestOptions:profile.requestOptions,searchModel:''}
-        if(['grok','deepseek','openai-compatible'].includes(profile.provider))settings={...settings,searchProvider:'searxng',searchMode:settings.searchBaseUrl?'auto':'off',webSearch:!!settings.searchBaseUrl}
+        if(['grok','deepseek','openai-compatible','gemini'].includes(profile.provider))settings={...settings,searchProvider:'searxng',searchMode:settings.searchBaseUrl?'auto':'off',webSearch:!!settings.searchBaseUrl}
       }else if(preset.profileId==='')throw new Error('此预设绑定了旧版全局配置，请重新绑定可用 API Profile')
       if(preset.model!==undefined){if(!preset.model.trim())throw new Error('预设模型 ID 不能为空');settings.model=preset.model.trim()}
       if(preset.profileId && !settings.model.trim())throw new Error('请先为预设绑定的 API 配置选择模型')

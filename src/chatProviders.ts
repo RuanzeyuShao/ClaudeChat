@@ -1,11 +1,14 @@
 import type { ProviderKind, Settings } from './types'
 
+export const GEMINI_BASE_URL='https://generativelanguage.googleapis.com/v1beta/openai'
+
 export const chatProviders = [
   { id: 'claude', name: 'Claude Chat', mark: '✳', color: '#c87853', kind: 'anthropic-compatible' },
   { id: 'gpt', name: 'GPT Chat', mark: 'G', color: '#35977f', kind: 'openai' },
   { id: 'kimi', name: 'Kimi Chat', mark: 'K', color: '#8276d3', kind: 'moonshot' },
   { id: 'deepseek', name: 'DeepSeek Chat', mark: 'D', color: '#5489d8', kind: 'deepseek' },
   { id: 'grok', name: 'Grok Chat', mark: 'X', color: '#888b91', kind: 'grok' },
+  { id: 'gemini', name: 'Gemini Chat', mark: '✦', color: '#4285f4', kind: 'gemini' },
   { id: 'glm', name: 'GLM Chat', mark: 'Z', color: '#7089a9', kind: 'zhipu' }
 ] as const
 export type ChatProviderId = typeof chatProviders[number]['id']

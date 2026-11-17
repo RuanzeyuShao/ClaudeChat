@@ -27,7 +27,7 @@ const invoke=(command,args={})=>page.evaluate(({command,args})=>window.__TAURI_I
 async function until(check,label){const end=Date.now()+30000;while(Date.now()<end){if(await check())return;await new Promise(r=>setTimeout(r,60))}throw new Error(label)}
 try{
  await launch();const id=(await invoke('get_conversations'))[0].id
- const settings={...await invoke('get_settings'),provider:process.env.CLAUDECHAT_TITLE_PROVIDER || 'openai-compatible',baseUrl:base,model:glmModel || 'title-test-model',apiKey:'local-mock',profileId:'',thinking:'off',searchMode:'off',webSearch:false,autoContinuations:0,autoRecoveries:0}
+ const settings={...await invoke('get_settings'),provider:process.env.CLAUDECHAT_TITLE_PROVIDER || 'openai-compatible',baseUrl:base,model:process.env.CLAUDECHAT_TITLE_GENERIC_MODEL || glmModel || 'title-test-model',apiKey:'local-mock',profileId:'',thinking:'off',searchMode:'off',webSearch:false,autoContinuations:0,autoRecoveries:0}
  const send=async(conversationId,content,attachments=[],persistUser=true)=>{const tree=await invoke('get_tree',{conversationId});const parentId=persistUser?tree.leaf:tree.messages.find(m=>m.id===tree.leaf)?.parentId;return invoke('send_message',{conversationId,content,settings,persistUser,attachments,parentId,references:[],requestId:crypto.randomUUID(),continueMessageId:null,checkCompletion:false})}
  await send(id,'我是刚接触编程的新手，想用 Python 处理 Excel 和可视化数据，请帮我安排学习计划。')
  await until(()=>titles.length===1,'first title request missing');assert.equal(main.length,1);assert.equal(held.length,1);assert.equal((await invoke('get_conversations')).find(c=>c.id===id).title,'新对话')

@@ -5,7 +5,7 @@ import { api } from '../services/tauri'
 import { useUiStore } from '../stores/ui'
 import { friendlyError } from '../utils/experience'
 import { useChatStore } from '../stores/chat'
-import { chatProviders, providerEntry } from '../chatProviders'
+import { chatProviders, providerEntry, GEMINI_BASE_URL } from '../chatProviders'
 import type { ApiProfile, ModelPrice, ProviderKind, ProviderModel, Settings } from '../types'
 import { ChevronDown, ChevronRight } from '@lucide/vue'
 
@@ -13,7 +13,7 @@ const props=defineProps<{initialProvider?:ProviderKind; initialProfileId?:string
 const chat=useChatStore(),ui=useUiStore()
 
 const providerName=(kind:ProviderKind)=>kind==='openai-compatible'?'自定义兼容服务':chatProviders.find(p=>p.kind===kind)?.name || kind
-const blank=(kind:ProviderKind=props.initialProvider || chat.settings.provider):ApiProfile=>({id:crypto.randomUUID(),name:'',baseUrl:'',provider:kind,model:'',thinking:'off',inputPrice:0,outputPrice:0,hasKey:false,requestOptions:null})
+const blank=(kind:ProviderKind=props.initialProvider || chat.settings.provider):ApiProfile=>({id:crypto.randomUUID(),name:'',baseUrl:kind==='gemini'?GEMINI_BASE_URL:'',provider:kind,model:'',thinking:'off',inputPrice:0,outputPrice:0,hasKey:false,requestOptions:null})
 const draft=reactive<ApiProfile>(blank()), key=ref(''), reveal=ref(false), options=ref('{}')
 const editorScroll=ref<HTMLElement>()
 const selected=ref(''), filter=ref(''), modelQuery=ref(''), catalog=ref<ProviderModel[]>([])
@@ -50,6 +50,7 @@ function create(){guard(()=>{notice.value='';filter.value='';reset()})}
 function duplicate(){if(!editing.value)return;const source=JSON.parse(JSON.stringify(editing.value)) as ApiProfile;guard(()=>{reset();Object.assign(draft,source,{id:crypto.randomUUID(),name:`${source.name} 副本`,hasKey:false});options.value=JSON.stringify(source.requestOptions || {},null,2);notice.value='已复制连接信息，请为副本填写 API Key。';snapshot.value=''})}
 defineExpose({requestLeave:guard,busy,confirmOpen:computed(()=>discardOpen.value || deleteOpen.value),cancelModal:()=>{if(busy.value)return;cancelDiscard();deleteOpen.value=false}})
 
+watch(()=>draft.provider,kind=>{if(kind==='gemini' && !draft.baseUrl.trim())draft.baseUrl=GEMINI_BASE_URL})
 watch(()=>[draft.provider,draft.baseUrl,key.value],()=>{catalog.value=[];modelPickerOpen.value=false;modelQuery.value=''})
 watch(()=>[draft.provider,draft.baseUrl,draft.model,options.value,key.value],()=>{testResult.value=null;fieldErrors.value={};error.value=''})
 
@@ -123,7 +124,7 @@ onMounted(async()=>{
     <fieldset :disabled="blocked" class="api-editor-fields">
      <section class="api-form-section"><h4><span>1</span>聊天服务</h4><label>服务类型<select v-model="draft.provider"><option v-for="p in chatProviders" :key="p.kind" :value="p.kind">{{ p.name }}</option><option value="openai-compatible">自定义 · OpenAI 兼容服务</option></select></label></section>
      <section class="api-form-section"><h4><span>2</span>连接信息</h4>
-      <label>API 地址 <em>必填</em><input v-model="draft.baseUrl" type="url" autocomplete="off" spellcheck="false" placeholder="https://api.example.com/v1" :aria-invalid="!!fieldErrors.baseUrl"/></label><p class="api-help">粘贴服务提供的 Base URL，也支持完整接口地址。</p><p v-if="fieldErrors.baseUrl" class="api-error">{{ fieldErrors.baseUrl }}</p>
+      <label>API 地址 <em>必填</em><input v-model="draft.baseUrl" type="url" autocomplete="off" spellcheck="false" placeholder="https://api.example.com/v1" :aria-invalid="!!fieldErrors.baseUrl"/></label><p class="api-help">粘贴服务提供的 Base URL，也支持完整接口地址。</p><p v-if="draft.provider==='gemini'" class="api-help">使用 Google AI Studio 的 Gemini API Key。<button type="button" class="api-secondary" @click="draft.baseUrl=GEMINI_BASE_URL">使用官方地址</button> 部分 Gemini 模型不支持关闭思考，关闭档将使用最低强度。联网检索请配置 SearXNG。</p><p v-if="fieldErrors.baseUrl" class="api-error">{{ fieldErrors.baseUrl }}</p>
       <label>API Key <span v-if="editing?.hasKey" class="api-key-saved">✓ 已安全保存</span><span class="api-key-input"><input v-model="key" :type="reveal?'text':'password'" autocomplete="new-password" spellcheck="false" :placeholder="editing?.hasKey?'留空保留现有密钥；输入新密钥即可更换':'粘贴 API Key，也可稍后补充'" :aria-invalid="!!fieldErrors.key"/><button type="button" :aria-label="reveal?'隐藏 API Key':'显示输入的 API Key'" @click="reveal=!reveal">{{ reveal?'隐藏':'显示' }}</button></span></label><p v-if="fieldErrors.key" class="api-error">{{ fieldErrors.key }}</p>
      </section>
      <section class="api-form-section"><h4><span>3</span>默认模型</h4><div class="api-model-row"><label>模型 ID<input ref="modelInput" v-model="draft.model" spellcheck="false" placeholder="获取模型后选择，或手动填写" :aria-invalid="!!fieldErrors.model"/></label><button type="button" class="api-secondary" aria-label="确认 API 模型" :disabled="!draft.model.trim() || blocked" @click="selectModel(draft.model)">选择</button><button type="button" class="api-secondary api-model-toggle" :aria-expanded="modelPickerOpen" aria-controls="api-model-options" @click="toggleModels">{{ operation==='models'?'获取中…':catalog.length?(modelPickerOpen?'收起模型列表':'展开模型列表'):'获取模型' }}<component :is="modelPickerOpen?ChevronDown:ChevronRight" :size="14"/></button></div><p v-if="fieldErrors.model" class="api-error">{{ fieldErrors.model }}</p>

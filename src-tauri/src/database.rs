@@ -712,7 +712,7 @@ impl Database {
                     "search_provider",
                     if matches!(
                         p.provider.as_str(),
-                        "grok" | "deepseek" | "openai-compatible"
+                        "grok" | "deepseek" | "openai-compatible" | "gemini"
                     ) {
                         "searxng"
                     } else {

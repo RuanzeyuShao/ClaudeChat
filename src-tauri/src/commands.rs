@@ -334,6 +334,7 @@ pub async fn test_connection(settings: Settings) -> Result<ConnectionResult, Str
         .build()
         .map_err(|e| e.to_string())?;
     let mut body = serde_json::json!({"model":settings.model,"max_tokens":1,"messages":[{"role":"user","content":"ping"}]});
+    if adapter==crate::provider::ProviderAdapter::Gemini {body["max_tokens"]=serde_json::json!(2048);adapter.configure(&mut body,"off");}
     adapter
         .configure_options(&mut body, &settings.request_options)
         .map_err(|e| e.to_string())?;

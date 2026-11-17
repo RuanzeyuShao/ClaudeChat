@@ -27,7 +27,7 @@ fn title_body(settings:&Settings,adapter:ProviderAdapter,input:&str)->anyhow::Re
     let glm=name.starts_with("glm-");
     // GLM-5.3 rejects disabled thinking. Keep one request and reserve room for reasoning.
     let forced=glm && name.starts_with("glm-5.3");
-    let reasoning=forced || name.starts_with("o1") || name.starts_with("o3") || name.starts_with("o4") || name.starts_with("gpt-5") || name.contains("deepseek-r1");
+    let reasoning=adapter==ProviderAdapter::Gemini || forced || name.starts_with("o1") || name.starts_with("o3") || name.starts_with("o4") || name.starts_with("gpt-5") || name.contains("deepseek-r1");
     let mut body=json!({"model":settings.model,"stream":false,"max_tokens":if forced{4096}else if reasoning{2048}else{256},"messages":[{"role":"user","content":input}]});
     if adapter==ProviderAdapter::Anthropic {body["system"]=json!(PROMPT)}else{body["messages"].as_array_mut().unwrap().insert(0,json!({"role":"system","content":PROMPT}));}
     adapter.configure(&mut body,"off");
@@ -44,7 +44,7 @@ pub async fn summarize(settings:&Settings,key:&str,input:&str)->Outcome{
     let request=async{
         let adapter=ProviderAdapter::new(&settings.provider)?;
         let body=title_body(settings,adapter,input)?;
-        result.reasoning=body["thinking"]["type"]=="enabled";
+        result.reasoning=body["thinking"]["type"]=="enabled" || (adapter==ProviderAdapter::Gemini && body.get("reasoning_effort").is_some() && body["reasoning_effort"]!="none");
         let client=reqwest::Client::builder().connect_timeout(std::time::Duration::from_secs(15)).timeout(std::time::Duration::from_secs(60)).build()?;
         let mut response=adapter.request(&client,&settings.base_url,key,&body).send().await?;
         let successful=response.status().is_success();let mut bytes=vec![];
