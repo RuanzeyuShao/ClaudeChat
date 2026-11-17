@@ -9,6 +9,7 @@ test('Gemini can be configured, selected and reopened with independent preferenc
  await expect(page.locator('.composer-provider-button')).toContainText('Gemini Chat');await expect(page.locator('.composer-provider-button')).toContainText('gemini-2.5-flash')
  await page.locator('.composer-provider-button').click();const panel=page.locator('#chat-provider-panel');await expect(panel.getByRole('combobox',{name:'选择聊天服务'})).toHaveValue('gemini');await panel.getByRole('textbox',{name:'自定义对话模型',exact:true}).fill('gemini-2.5-pro');await panel.getByRole('button',{name:'选择',exact:true}).click();await panel.getByRole('button',{name:'应用配置',exact:true}).click();await expect(page.locator('.composer-provider-button')).toContainText('gemini-2.5-pro')
  const state=await page.evaluate(async()=>{const p='/src/stores/chat.ts',s=(await import(p)).useChatStore();return {provider:s.settings.provider,model:s.settings.model,preference:s.providerPreferences.gemini,search:s.settings.searchProvider}});expect(state.provider).toBe('gemini');expect(state.model).toBe('gemini-2.5-pro');expect(state.preference?.model).toBe('gemini-2.5-pro');expect(state.search).toBe('searxng')
+ await expect(panel).toHaveCount(0);await expect(page.locator('.toast')).toHaveCount(0,{timeout:10000});
  mkdirSync('dist-release/v0.1.6-gemini/screenshots',{recursive:true});await page.locator('.chat-header').hover();await page.screenshot({path:'dist-release/v0.1.6-gemini/screenshots/gemini-configured.png'})
 })
 test('Gemini entry and configuration fit a compact dark window',async({page})=>{

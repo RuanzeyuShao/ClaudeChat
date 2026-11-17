@@ -1,0 +1,15 @@
+
+> claude-chat@0.1.6 test:ui
+> playwright test gemini.spec.ts --reporter=list
+
+[WebServer] (node:20448) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 2 tests using 1 worker
+
+(node:15996) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 tests\browser\gemini.spec.ts:3:1 › Gemini can be configured, selected and reopened with independent preferences (16.1s)
+  ok 2 tests\browser\gemini.spec.ts:15:1 › Gemini entry and configuration fit a compact dark window (653ms)
+
+  2 passed (19.1s)
