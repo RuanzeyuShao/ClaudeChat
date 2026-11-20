@@ -1,0 +1,14 @@
+{
+  "product": "ClaudeChat",
+  "version": "0.1.6",
+  "revision": "2026-11-20-ui-cleanup",
+  "platform": "windows-x64",
+  "installer": "ClaudeChat_0.1.6_x64-setup.exe",
+  "bytes": 7053514,
+  "sha256": "8d57e253a96baf2294aaffbee0693987413d5e9887b656e551d3c97bbd6f83cc",
+  "builtAt": "2026-11-20T03:23:49.653Z",
+  "sourceCommit": "8cdc4f6be89f226641b3c2ee638db4142ae168c0",
+  "branch": "main",
+  "githubReleasePublished": true,
+  "releaseUrl": "https://github.com/RuanzeyuShao/ClaudeChat/releases/tag/v0.1.6"
+}
