@@ -9,7 +9,7 @@ function hide(){
   target=undefined
 }
 function begin(event:Event){
-  const node=(event.target as Element)?.closest<HTMLElement>('button[title],.inline-citation a[title],.source-link[title],button[data-motion-tooltip],.inline-citation a[data-motion-tooltip],.source-link[data-motion-tooltip]')
+  const node=(event.target as Element)?.closest<HTMLElement>('button[title],.inline-citation a[title],.source-link[title],[data-motion-tooltip]')
   if(!node || node.closest('[inert],.conversation-minimap') || node instanceof HTMLButtonElement && node.disabled){hide();return}
   if(target===node)return
   hide();target=node;originalTitle=node.getAttribute('title') || node.dataset.motionTooltip || '';if(!originalTitle)return

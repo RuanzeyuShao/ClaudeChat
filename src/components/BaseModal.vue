@@ -9,7 +9,7 @@ const previous = focusOrigin()
 function keyboard(event: KeyboardEvent) {
   if (event.key === 'Escape' && !event.isComposing) { event.preventDefault(); event.stopPropagation(); emit('close') }
   if (event.key !== 'Tab') return
-  const nodes = Array.from(root.value?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]') || []).filter(n => n.offsetParent !== null && !n.closest('[inert]'))
+  const nodes = Array.from(root.value?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]') || []).filter(n => n.getClientRects().length > 0 && !n.closest('[inert]'))
   if (!nodes.length) return
   const first = nodes[0], last = nodes.at(-1)!
   if (event.shiftKey && (document.activeElement === first || !root.value?.contains(document.activeElement))) { event.preventDefault(); last.focus() }

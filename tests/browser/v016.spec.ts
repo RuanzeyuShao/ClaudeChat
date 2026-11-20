@@ -12,10 +12,10 @@ test('tree restoration and deleting a turn require explicit confirmation',async(
  await seed(page);await page.getByRole('button',{name:'对话树',exact:true}).click();await page.getByRole('button',{name:'恢复上下文：原始回答',exact:true}).click();await expect(page.getByRole('dialog',{name:'恢复此节点的上下文？'})).toBeVisible();await page.getByRole('button',{name:'取消',exact:true}).click();await expect(page.locator('.message')).toHaveCount(4)
  await page.getByRole('button',{name:'关闭对话树'}).click();await page.locator('[data-message-id="a2"]').getByRole('button',{name:'消息更多操作'}).click();await page.getByRole('menuitem',{name:'删除此轮',exact:true}).click();await expect(page.getByRole('dialog',{name:'删除此轮？'})).toBeVisible();await page.getByRole('button',{name:'取消',exact:true}).click();await expect(page.locator('.message')).toHaveCount(4)
 })
-test('composer previews intent and message context without persisting its override',async({page})=>{
- await seed(page);await page.getByRole('textbox',{name:'聊天输入框',exact:true}).fill('什么是递归？');await expect(page.locator('.request-preview')).toContainText('本条不联网');await expect(page.locator('.request-preview')).toContainText('5 条消息')
- await page.getByRole('textbox',{name:'聊天输入框',exact:true}).fill('搜索最新消息');await expect(page.locator('.request-preview')).toContainText('将联网检索');await page.getByRole('combobox',{name:'联网模式',exact:true}).selectOption('off');await expect(page.locator('.request-preview')).toContainText('本条不联网')
- mkdirSync('dist-release/v0.1.6/screenshots',{recursive:true});await page.screenshot({path:'dist-release/v0.1.6/screenshots/request-preview.png'})
+test('composer exposes intent and context on demand without persisting its override',async({page})=>{
+ await seed(page);const context=page.getByRole('status',{name:/上下文/});await page.getByRole('textbox',{name:'聊天输入框',exact:true}).fill('什么是递归？');await expect(context).toHaveAttribute('aria-label',/本条不联网/);await expect(context).toHaveAttribute('aria-label',/5 条消息/)
+ await page.getByRole('textbox',{name:'聊天输入框',exact:true}).fill('搜索最新消息');await expect(context).toHaveAttribute('aria-label',/将联网检索/);await page.getByRole('combobox',{name:'联网模式',exact:true}).selectOption('off');await expect(context).toHaveAttribute('aria-label',/本条不联网/)
+ mkdirSync('dist-release/v0.1.6/screenshots',{recursive:true});await page.screenshot({path:'dist-release/v0.1.6/screenshots/request-context.png'})
 })
 test('multiple references deduplicate and each can be removed',async({page})=>{
  await seed(page);for(const id of ['u','a','u'])await page.locator(`[data-message-id="${id}"]`).getByRole('button',{name:'引用消息或选中文字'}).click()

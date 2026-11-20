@@ -12,11 +12,9 @@
 .usage-scroll { flex:1; min-height:0; min-width:0; overflow:auto; overscroll-behavior:contain; padding:28px clamp(16px,3cqi,40px) 32px; }
 .usage-scroll>* { min-width:0; max-width:100%; }
 .usage-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:24px; }
-.usage-heading>div:first-child { min-width:0; }.usage-eyebrow { font-size: calc(10px * var(--font-scale, 1)); font-weight:600; letter-spacing:.16em; color:var(--u-accent); margin-bottom:8px; }
+.usage-heading>h1 { min-width:0; }
 .usage-heading h1 { margin:0; font-size:clamp(24px,4cqi,30px); line-height:1.3; letter-spacing:-.03em; font-weight:600; }
 .usage-heading p,.usage-card-heading p,.usage-comparison-heading p { color:var(--u-muted); margin:7px 0 0; line-height:1.65; font-size: calc(12px * var(--font-scale, 1)); overflow-wrap:anywhere; }
-.usage-live { display:flex; align-items:center; gap:7px; flex:none; white-space:nowrap; color:var(--u-muted); border:1px solid var(--u-border); background:var(--u-card); border-radius:16px; padding:7px 10px; font-size: calc(10px * var(--font-scale, 1)); }
-.usage-live-dot { width:6px; height:6px; flex:none; background:var(--success); border-radius:50%; }
 .usage-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; margin-bottom:18px; }
 .usage-presets { display:inline-flex; flex-wrap:wrap; gap:3px; min-width:0; max-width:100%; padding:4px; background:var(--u-card); border:1px solid var(--u-border); border-radius:10px; }
 .usage-presets button,.usage-ghost { border:0; background:transparent; color:var(--u-muted); border-radius:6px; padding:7px 10px; font-size: calc(11px * var(--font-scale, 1)); cursor:pointer; white-space:nowrap; }
@@ -29,7 +27,7 @@
 .usage-selects label { display:flex; flex-direction:column; gap:6px; min-width:0; color:var(--u-muted); font-size: calc(11px * var(--font-scale, 1)); }
 .usage-selects select { width:100%; min-width:0; max-width:100%; padding:8px 9px; font-size: calc(12px * var(--font-scale, 1)); background:var(--u-card); }
 .usage-warning { color:var(--error); margin:0 0 16px; font-size: calc(12px * var(--font-scale, 1)); line-height:1.6; }
-.usage-origin-note,.usage-footnote { color:var(--u-muted); font-size: calc(11px * var(--font-scale, 1)); line-height:1.7; overflow-wrap:anywhere; margin:14px 0; }
+.usage-origin-note,.usage-footnote { color:var(--u-muted); font-size: calc(11px * var(--font-scale, 1)); line-height:1.7; overflow-wrap:anywhere; margin:14px 0; }.usage-origin-note summary{width:max-content;cursor:pointer}.usage-origin-note p{max-width:760px;margin:8px 0 0}
 .usage-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,146px),1fr)); gap:12px; margin-bottom:18px; }
 .usage-card,.usage-chart-card { min-width:0; background:var(--u-card); border:1px solid var(--u-border); border-radius:var(--radius-md); box-shadow:var(--shadow-sm); }
 .usage-card { padding:16px; }.usage-card span,.usage-card small { display:block; color:var(--u-muted); overflow-wrap:anywhere; }
@@ -62,4 +60,4 @@
 .usage-records tbody tr:not(:has(.usage-empty)) { cursor:pointer; }.usage-records tbody tr:hover:not(:disabled) { background:var(--u-bg); }.usage-records tbody tr:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
 .usage-pagination { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:8px; margin-top:14px; color:var(--u-muted); font-size: calc(11px * var(--font-scale, 1)); }.usage-pagination button { background:var(--u-card); border:1px solid var(--u-border); border-radius:7px; padding:6px 10px; }
 .usage-row-origin { display:block; font-size: calc(9px * var(--font-scale, 1)); color:var(--u-muted); margin-top:3px; }.usage-id { font-size: calc(10px * var(--font-scale, 1)); }
-@container(max-width:480px) { .usage-toolbar { padding:10px 16px; }.usage-live { display:none; }.usage-chart-card { padding:16px 12px; }.usage-heading { margin-bottom:20px; }.usage-selects { grid-template-columns:1fr; } }
+@container(max-width:480px) { .usage-toolbar { padding:10px 16px; }.usage-chart-card { padding:16px 12px; }.usage-heading { margin-bottom:20px; }.usage-selects { grid-template-columns:1fr; } }

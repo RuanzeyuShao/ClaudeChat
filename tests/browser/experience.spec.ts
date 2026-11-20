@@ -58,7 +58,7 @@ test('IME candidates, expanded draft, rename and theme preferences',async({page}
  await page.getByRole('button',{name:'保存偏好'}).click()
  await expect(page.locator('html')).toHaveAttribute('data-theme','dark')
  await page.keyboard.press('Escape')
- await expect(page.getByText('Ctrl+Enter 发送 · Enter 换行')).toBeVisible()
+ await expect(input).toHaveAttribute('title','Ctrl+Enter 发送，Enter 换行')
 })
 for(const theme of ['light','dark'] as const)for(const scale of [1,1.25,1.5,2])test(`layout ${theme} ${scale*100}%`,async({browser,baseURL})=>{
  const context=await browser.newContext({viewport:{width:scale===1?1440:800,height:scale===1?900:600},deviceScaleFactor:scale,colorScheme:theme})

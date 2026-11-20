@@ -56,9 +56,9 @@ test('general preferences and the picker explain and disable unimplemented built
  await seed(page)
  await page.getByRole('button',{name:'配置当前聊天服务'}).click();let panel=page.locator('#chat-provider-panel');await panel.getByRole('combobox',{name:'选择聊天服务'}).selectOption('deepseek');await panel.getByRole('button',{name:'应用配置'}).click()
  await page.getByRole('button',{name:'设置',exact:true}).click();await page.getByRole('button',{name:'通用偏好',exact:true}).click()
- const preferences=page.locator('.api-settings-secondary').filter({has:page.getByRole('combobox',{name:'默认搜索服务'})});await expect(preferences.getByRole('combobox',{name:'默认搜索服务'}).locator('option[value="claude"]')).toHaveAttribute('disabled','');await expect(preferences).toContainText('DeepSeek API 适配器未接入')
+ const preferences=page.locator('.api-settings-secondary').filter({has:page.getByRole('combobox',{name:'默认搜索服务'})}),preferenceSearch=preferences.getByRole('combobox',{name:'默认搜索服务'});await expect(preferenceSearch.locator('option[value="claude"]')).toHaveAttribute('disabled','');await expect(preferenceSearch).toHaveAttribute('title',/DeepSeek API 适配器未接入/)
  await page.keyboard.press('Escape');await page.getByRole('combobox',{name:'联网模式',exact:true}).selectOption('force');await expect(page.getByRole('combobox',{name:'联网模式',exact:true})).toHaveValue('off');await expect(page.getByText(/请先在搜索设置中填写 SearXNG/)).toBeVisible()
- await page.getByRole('button',{name:'配置当前聊天服务'}).click();await panel.locator('summary').click();await expect(panel.getByRole('combobox',{name:'搜索服务'}).locator('option[value="claude"]')).toHaveAttribute('disabled','');await expect(panel).toContainText('DeepSeek API 适配器未接入')
+ await page.getByRole('button',{name:'配置当前聊天服务'}).click();await panel.locator('summary').click();const panelSearch=panel.getByRole('combobox',{name:'搜索服务'});await expect(panelSearch.locator('option[value="claude"]')).toHaveAttribute('disabled','');await expect(panelSearch).toHaveAttribute('title',/DeepSeek API 适配器未接入/)
 })
 
 for(const scale of [1,1.25,1.5])test(`Thinking track fills both endpoints and layout is stable at device scale ${scale}`,async({browser})=>{

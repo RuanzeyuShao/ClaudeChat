@@ -53,13 +53,11 @@
 .ui-workbench .input-box{border:1px solid var(--line);border-radius:20px;padding:16px;background:var(--panel);box-shadow:var(--shadow-sm)}
 .ui-workbench .input-box:focus-within{box-shadow:0 0 0 2px var(--accent-soft),var(--shadow-sm)}
 .ui-workbench .composer-edit textarea{min-height:64px;padding:8px 32px 12px 0}
-.ui-workbench .request-preview{padding:0 0 8px;gap:4px 16px;font-size:calc(10px * var(--font-scale,1))}
 .ui-workbench .input-footer{gap:12px;margin-top:8px}
 .ui-workbench .input-options,.ui-workbench .composer-model-controls{gap:8px}
 .ui-workbench .composer-provider-button,.ui-workbench .thinking-tag,.ui-workbench .composer-search{min-height:36px;border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:4px 8px;font-size:calc(13px * var(--font-scale,1));gap:8px;color:var(--text)}
 .ui-workbench .composer-search select{font:inherit;padding:0;background:transparent}
 .ui-workbench .send{width:40px;height:40px;border-radius:12px;box-shadow:var(--shadow-sm);flex:none}
-.ui-workbench .input-wrap>p{margin:8px 0 0;color:var(--muted);font-size:calc(10px * var(--font-scale,1))}
 .ui-workbench .sidebar-collapsed{padding:12px 8px}
 .ui-workbench .sidebar-collapsed .brand{padding:0 0 12px}
 .ui-workbench .sidebar-collapsed .brand>svg{display:block}

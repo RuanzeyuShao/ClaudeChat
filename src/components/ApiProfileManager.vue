@@ -7,7 +7,7 @@ import { friendlyError } from '../utils/experience'
 import { useChatStore } from '../stores/chat'
 import { chatProviders, providerEntry, GEMINI_BASE_URL } from '../chatProviders'
 import type { ApiProfile, ModelPrice, ProviderKind, ProviderModel, Settings } from '../types'
-import { ChevronDown, ChevronRight } from '@lucide/vue'
+import { CheckCircle2, ChevronDown, ChevronRight, CircleHelp, KeyRound, RotateCcw } from '@lucide/vue'
 
 const props=defineProps<{initialProvider?:ProviderKind; initialProfileId?:string}>()
 const chat=useChatStore(),ui=useUiStore()
@@ -36,7 +36,7 @@ const filteredModels=computed(()=>catalog.value.filter(m=>`${m.id} ${m.name || '
 const legacyAvailable=computed(()=>!chat.settings.profileId && !!chat.settings.baseUrl && !chat.profiles.some(p=>p.id==='legacy-global-api'))
 const autoName=computed(()=>{let base=providerName(draft.provider);try{base+=` · ${new URL(draft.baseUrl).hostname}`}catch{}const names=new Set(chat.profiles.filter(p=>p.id!==draft.id).map(p=>p.name));let name=base,n=2;while(names.has(name))name=`${base} (${n++})`;return name})
 const addressHost=(url:string)=>{try{return new URL(url).host}catch{return url}}
-const configStatus=(profile:ApiProfile)=>!profile.hasKey?'待填写密钥':!profile.model.trim()?'待选择模型':chat.settings.profileId===profile.id?'使用中':'已保存'
+const configStatus=(profile:ApiProfile)=>!profile.hasKey?'尚未保存密钥':!profile.model.trim()?'尚未选择模型':chat.settings.profileId===profile.id?'当前使用中':'配置完整'
 
 function reset(profile?:ApiProfile){
  selected.value=profile?.id || '';Object.assign(draft,profile?JSON.parse(JSON.stringify(profile)):blank())
@@ -108,35 +108,33 @@ onMounted(async()=>{
    <input v-model="filter" class="api-list-search" type="search" aria-label="搜索 API 配置" placeholder="搜索名称、服务或地址…"/>
    <div class="api-config-cards">
     <button v-for="p in filteredProfiles" :key="p.id" class="api-config-card" :class="{selected:p.id===selected}" :disabled="blocked" @click="select(p)">
-     <span class="api-card-top"><strong>{{ p.name }}</strong><span class="api-status-badge" :class="{active:p.id===chat.settings.profileId && !!p.model && p.hasKey,incomplete:!p.hasKey || !p.model}">{{ configStatus(p) }}</span></span>
+     <span class="api-card-top"><strong>{{ p.name }}</strong><span class="api-status-dot" :class="{active:p.id===chat.settings.profileId && !!p.model && p.hasKey,incomplete:!p.hasKey || !p.model}" role="img" :aria-label="configStatus(p)" :title="configStatus(p)" data-motion-tooltip/></span>
      <span>{{ providerName(p.provider) }}</span><small>{{ addressHost(p.baseUrl) }}</small><small>{{ p.model || '尚未选择模型' }}</small>
     </button>
-    <p v-if="!chat.profiles.length" class="api-list-empty">还没有 API 配置<br/>在右侧添加第一个连接。</p><p v-else-if="!filteredProfiles.length" class="api-list-empty">没有匹配的配置</p>
+    <p v-if="!chat.profiles.length" class="api-list-empty">还没有 API 配置</p><p v-else-if="!filteredProfiles.length" class="api-list-empty">没有匹配的配置</p>
    </div>
-   <p class="api-local-note">API Key 保存在系统凭据管理器中。</p>
   </aside>
   <section class="api-editor">
-   <div class="api-editor-heading"><div><h3>{{ selected?'编辑 API 配置':'添加 API 配置' }}</h3><p>{{ selected?'保存连接信息，按需启用。':'选择服务 → 填写连接 → 选择模型' }}</p></div><span v-if="dirty" class="api-dirty">未保存</span><span v-else-if="selected" class="api-status-badge">已保存</span></div>
+   <div class="api-editor-heading"><h3>{{ selected?'编辑 API 配置':'添加 API 配置' }}</h3><span v-if="dirty" class="api-dirty-dot" role="status" aria-label="有未保存的修改" title="有未保存的修改" data-motion-tooltip/></div>
    <div ref="editorScroll" class="api-editor-scroll">
     <p v-if="chat.loading" class="api-notice">当前正在生成回答，完成后可修改连接。</p><p v-if="!api.isTauri" class="api-notice">浏览器预览仅用于界面检查，配置不会写入桌面数据库。</p>
     <div v-if="legacyAvailable && api.isTauri" class="api-notice">发现旧版全局 API 连接。<button :disabled="blocked" @click="guard(()=>{void importLegacy()})">导入已有连接与密钥</button></div>
-    <p v-if="notice" class="api-success" role="status">{{ notice }}</p><p v-if="error" class="api-error" role="alert">{{ error }}</p>
+    <p v-if="error" class="api-error" role="alert">{{ error }}</p>
     <fieldset :disabled="blocked" class="api-editor-fields">
-     <section class="api-form-section"><h4><span>1</span>聊天服务</h4><label>服务类型<select v-model="draft.provider"><option v-for="p in chatProviders" :key="p.kind" :value="p.kind">{{ p.name }}</option><option value="openai-compatible">自定义 · OpenAI 兼容服务</option></select></label></section>
+     <section class="api-form-section"><h4><span>1</span>聊天服务</h4><label><span class="api-label-line">服务类型<CircleHelp v-if="draft.provider==='gemini'" :size="14" tabindex="0" title="使用 Google AI Studio API Key；联网检索使用 SearXNG。部分 Gemini 模型无法关闭思考，关闭档会使用最低强度。" data-motion-tooltip/></span><select v-model="draft.provider"><option v-for="p in chatProviders" :key="p.kind" :value="p.kind">{{ p.name }}</option><option value="openai-compatible">自定义 · OpenAI 兼容服务</option></select></label></section>
      <section class="api-form-section"><h4><span>2</span>连接信息</h4>
-      <label>API 地址 <em>必填</em><input v-model="draft.baseUrl" type="url" autocomplete="off" spellcheck="false" placeholder="https://api.example.com/v1" :aria-invalid="!!fieldErrors.baseUrl"/></label><p class="api-help">粘贴服务提供的 Base URL，也支持完整接口地址。</p><p v-if="draft.provider==='gemini'" class="api-help">使用 Google AI Studio 的 Gemini API Key。<button type="button" class="api-secondary" @click="draft.baseUrl=GEMINI_BASE_URL">使用官方地址</button> 部分 Gemini 模型不支持关闭思考，关闭档将使用最低强度。联网检索请配置 SearXNG。</p><p v-if="fieldErrors.baseUrl" class="api-error">{{ fieldErrors.baseUrl }}</p>
-      <label>API Key <span v-if="editing?.hasKey" class="api-key-saved">✓ 已安全保存</span><span class="api-key-input"><input v-model="key" :type="reveal?'text':'password'" autocomplete="new-password" spellcheck="false" :placeholder="editing?.hasKey?'留空保留现有密钥；输入新密钥即可更换':'粘贴 API Key，也可稍后补充'" :aria-invalid="!!fieldErrors.key"/><button type="button" :aria-label="reveal?'隐藏 API Key':'显示输入的 API Key'" @click="reveal=!reveal">{{ reveal?'隐藏':'显示' }}</button></span></label><p v-if="fieldErrors.key" class="api-error">{{ fieldErrors.key }}</p>
+      <label><span class="api-label-line">API 地址<button v-if="draft.provider==='gemini'" type="button" class="api-inline-icon" aria-label="恢复 Gemini 官方地址" title="恢复 Gemini 官方地址" @click="draft.baseUrl=GEMINI_BASE_URL"><RotateCcw :size="13"/></button></span><input v-model="draft.baseUrl" type="url" required aria-required="true" aria-label="API 地址" autocomplete="off" spellcheck="false" placeholder="https://api.example.com/v1" :aria-invalid="!!fieldErrors.baseUrl"/></label><p v-if="fieldErrors.baseUrl" class="api-error">{{ fieldErrors.baseUrl }}</p>
+      <label><span class="api-label-line">API Key<KeyRound :size="14" role="img" aria-label="密钥保存在系统凭据管理器中" title="密钥保存在系统凭据管理器中" tabindex="0" data-motion-tooltip/><CheckCircle2 v-if="editing?.hasKey" :size="14" class="api-key-state" role="img" aria-label="密钥已保存" title="密钥已保存" tabindex="0" data-motion-tooltip/></span><span class="api-key-input"><input v-model="key" :type="reveal?'text':'password'" aria-label="API Key" autocomplete="new-password" spellcheck="false" :placeholder="editing?.hasKey?'留空保留现有密钥；输入新密钥即可更换':'粘贴 API Key，也可稍后补充'" :aria-invalid="!!fieldErrors.key"/><button type="button" :aria-label="reveal?'隐藏 API Key':'显示输入的 API Key'" @click="reveal=!reveal">{{ reveal?'隐藏':'显示' }}</button></span></label><p v-if="fieldErrors.key" class="api-error">{{ fieldErrors.key }}</p>
      </section>
      <section class="api-form-section"><h4><span>3</span>默认模型</h4><div class="api-model-row"><label>模型 ID<input ref="modelInput" v-model="draft.model" spellcheck="false" placeholder="获取模型后选择，或手动填写" :aria-invalid="!!fieldErrors.model"/></label><button type="button" class="api-secondary" aria-label="确认 API 模型" :disabled="!draft.model.trim() || blocked" @click="selectModel(draft.model)">选择</button><button type="button" class="api-secondary api-model-toggle" :aria-expanded="modelPickerOpen" aria-controls="api-model-options" @click="toggleModels">{{ operation==='models'?'获取中…':catalog.length?(modelPickerOpen?'收起模型列表':'展开模型列表'):'获取模型' }}<component :is="modelPickerOpen?ChevronDown:ChevronRight" :size="14"/></button></div><p v-if="fieldErrors.model" class="api-error">{{ fieldErrors.model }}</p>
       <div v-if="modelPickerOpen && catalog.length" id="api-model-options" class="api-model-picker"><header class="api-model-picker-heading"><span>可用模型</span><button type="button" @click="fetchModels">刷新列表</button></header><input v-model="modelQuery" type="search" aria-label="筛选 API 模型" placeholder="筛选模型…"/><div role="group" aria-label="API 模型列表"><button v-for="m in filteredModels" :key="m.id" type="button" :class="{chosen:draft.model===m.id}" :aria-pressed="draft.model===m.id" @click="selectModel(m.id)"><span>{{ m.name || m.id }}<small v-if="m.name">{{ m.id }}</small></span><span v-if="draft.model===m.id" aria-hidden="true">✓</span></button><p v-if="!filteredModels.length" class="api-help">没有匹配模型</p></div></div>
-      <p class="api-help">选择列表或自定义模型后仅收起模型列表，配置界面保持打开；所有修改点击“保存配置”或“保存并启用”后生效。可先保存连接，稍后补充模型和密钥。</p>
-      <button type="button" class="api-secondary" @click="test">{{ operation==='test'?'正在测试…':'测试连接' }}</button><span class="api-test-note">一次简短请求，可能产生少量用量</span><p v-if="testResult" :class="testResult.ok?'api-success':'api-error'" role="status">{{ testResult.ok?'✓ 连接正常，可保存并启用。':testResult.message }}</p>
+      <button type="button" class="api-secondary" title="发送一次短请求，可能产生少量用量" @click="test">{{ operation==='test'?'正在测试…':'测试连接' }}</button><p v-if="testResult" :class="testResult.ok?'api-success':'api-error'" role="status">{{ testResult.ok?'连接正常':testResult.message }}</p>
      </section>
-     <label>配置名称 <em>可选</em><input v-model="draft.name" :placeholder="autoName"/></label>
-     <details class="api-advanced" :open="!!fieldErrors.options || !!fieldErrors.prices"><summary>高级设置 · 思考、价格与附加参数</summary>
+     <label>配置名称<input v-model="draft.name" :placeholder="autoName"/></label>
+     <details class="api-advanced" :open="!!fieldErrors.options || !!fieldErrors.prices"><summary>高级设置</summary>
       <label>默认思考强度<select v-model="draft.thinking"><option value="off">Off · 使用模型默认行为</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
       <div class="api-price-grid"><label>输入单价 / 百万 Token<input v-model.number="draft.inputPrice" type="number" min="0" step="0.01"/></label><label>输出单价 / 百万 Token<input v-model.number="draft.outputPrice" type="number" min="0" step="0.01"/></label></div><p v-if="fieldErrors.prices" class="api-error">{{ fieldErrors.prices }}</p>
-      <label>附加请求参数（JSON）<textarea v-model="options" :aria-invalid="!!fieldErrors.options" rows="4" spellcheck="false"/></label><p class="api-help">输出预算可设置 max_tokens（OpenAI 自动转换为 max_completion_tokens）；client_max_output_tokens 用于填写服务商已确认的模型输出上限，客户端会取较小值。Anthropic 的 Thinking Budget 包含在总输出预算内。未知模型上限请以服务商文档为准，参数错误不会反复重试。</p><p v-if="fieldErrors.options" class="api-error">{{ fieldErrors.options }}</p>
+      <label><span class="api-label-line">附加请求参数（JSON）<CircleHelp :size="14" tabindex="0" title="支持 max_tokens 与 client_max_output_tokens；客户端采用较小的有效输出上限。参数错误不会自动重试。" data-motion-tooltip/></span><textarea v-model="options" :aria-invalid="!!fieldErrors.options" rows="4" spellcheck="false"/></label><p v-if="fieldErrors.options" class="api-error">{{ fieldErrors.options }}</p>
       <div v-if="selected" class="api-price-overrides"><h4>模型单价覆盖</h4><label>单独定价的模型<input v-model="priceModel"/></label><div class="api-price-grid"><label>输入单价<input v-model.number="priceInput" type="number" min="0" step="0.01"/></label><label>输出单价<input v-model.number="priceOutput" type="number" min="0" step="0.01"/></label></div><button type="button" class="api-secondary" @click="savePrice">保存模型单价</button><p v-for="price in modelPrices.filter(p=>p.profileId===selected)" :key="price.model" class="api-help">{{ price.model }} · 输入 ${{ price.inputPrice }} / 输出 ${{ price.outputPrice }}</p></div>
      </details>
     </fieldset>

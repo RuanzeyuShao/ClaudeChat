@@ -36,7 +36,7 @@ it('preserves independent conversation context selections including select-none'
 })
 it('uses intent instead of punctuation and previews a per-message search override',async()=>{
  const chat=useChatStore();expect(searchIntent(chat.settings,'如何写函数？')).toBe(false);expect(searchIntent(chat.settings,'What is recursion?')).toBe(false);expect(searchIntent(chat.settings,'搜索最新消息')).toBe(true)
- wrapper=mount(ChatInput);await wrapper.get('[aria-label="联网模式"]').setValue('off');expect(chat.effectiveSettings().searchMode).toBe('off');expect(chat.settings.searchMode).toBe('auto');expect(wrapper.text()).toContain('本条不联网');await flushPromises()
+ wrapper=mount(ChatInput);await wrapper.get('[aria-label="联网模式"]').setValue('off');expect(chat.effectiveSettings().searchMode).toBe('off');expect(chat.settings.searchMode).toBe('auto');expect(wrapper.get('.composer-context').attributes('aria-label')).toContain('本条不联网');await flushPromises()
 })
 it('accumulates and deduplicates references',()=>{
  const chat=useChatStore(),[first,second]=chat.active!.messages;chat.quote(first);chat.quote(second);chat.quote(first);expect(chat.references).toHaveLength(2);chat.references.splice(0,1);expect(chat.references[0].messageId).toBe('a')
